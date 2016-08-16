@@ -1,0 +1,15 @@
+[package]
+name = "kaitai_struct"
+version = "0.1.0"
+authors = [ "Kaitai Contributors" ]
+repository = "https://github.com/kaitai-io/kaitai_struct_rust_runtime"
+homepage = "http://kaitai.io"
+license = "MIT"
+readme = "README.md"
+documentation = "https://github.com/kaitai-io/kaitai_struct/wiki"
+description = "Rust runtime for Kaitai Struct"
+
+[dependencies]
+byteorder = "0.5"
+encoding = "0.2"
+flate2 = "0.2"
