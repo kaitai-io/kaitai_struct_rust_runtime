@@ -3,14 +3,23 @@ extern crate byteorder;
 extern crate encoding;
 extern crate flate2;
 
+use std::fs::File;
 use std::io::{Cursor, Seek, SeekFrom, Read, Result};
 use flate2::read::ZlibDecoder;
 
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use encoding::DecoderTrap;
 use encoding::label::encoding_from_whatwg_label;
 
-pub trait Stream: ReadBytesExt + Seek {
+macro_rules! read_endian {
+    ($this:ident, $size:expr, $end:ident, $method:ident) => {{
+        let mut buf = [0; $size];
+        try!($this.read_exact(&mut buf));
+        Ok($end::$method(&buf))
+    }}
+}
+
+pub trait Stream: Read + Seek {
     // ------------------ //
     // Stream positioning //
     // ------------------ //
@@ -51,35 +60,37 @@ pub trait Stream: ReadBytesExt + Seek {
     // ---------------------- //
 
     fn read_s1(&mut self) -> Result<i8> {
-        self.read_i8()
+        let mut buf = [0; 1];
+        try!(self.read_exact(&mut buf));
+        Ok(buf[0] as i8)
     }
 
     // Big endian
 
     fn read_s2be(&mut self) -> Result<i16> {
-        self.read_i16::<BigEndian>()
+        read_endian!(self, 2, BigEndian, read_i16)
     }
 
     fn read_s4be(&mut self) -> Result<i32> {
-        self.read_i32::<BigEndian>()
+        read_endian!(self, 4, BigEndian, read_i32)
     }
 
     fn read_s8be(&mut self) -> Result<i64> {
-        self.read_i64::<BigEndian>()
+        read_endian!(self, 8, BigEndian, read_i64)
     }
 
     // Little endian
 
     fn read_s2le(&mut self) -> Result<i16> {
-        self.read_i16::<LittleEndian>()
+        read_endian!(self, 2, LittleEndian, read_i16)
     }
 
     fn read_s4le(&mut self) -> Result<i32> {
-        self.read_i32::<LittleEndian>()
+        read_endian!(self, 4, LittleEndian, read_i32)
     }
 
     fn read_s8le(&mut self) -> Result<i64> {
-        self.read_i64::<LittleEndian>()
+        read_endian!(self, 8, LittleEndian, read_i64)
     }
 
     // ------------------------ //
@@ -87,35 +98,37 @@ pub trait Stream: ReadBytesExt + Seek {
     // ------------------------ //
 
     fn read_u1(&mut self) -> Result<u8> {
-        self.read_u8()
+        let mut buf = [0; 1];
+        try!(self.read_exact(&mut buf));
+        Ok(buf[0])
     }
 
     // Big endian
 
     fn read_u2be(&mut self) -> Result<u16> {
-        self.read_u16::<BigEndian>()
+        read_endian!(self, 2, BigEndian, read_u16)
     }
 
     fn read_u4be(&mut self) -> Result<u32> {
-        self.read_u32::<BigEndian>()
+        read_endian!(self, 4, BigEndian, read_u32)
     }
 
     fn read_u8be(&mut self) -> Result<u64> {
-        self.read_u64::<BigEndian>()
+        read_endian!(self, 8, BigEndian, read_u64)
     }
 
     // Little endian
 
     fn read_u2le(&mut self) -> Result<u16> {
-        self.read_u16::<LittleEndian>()
+        read_endian!(self, 2, LittleEndian, read_u16)
     }
 
     fn read_u4le(&mut self) -> Result<u32> {
-        self.read_u32::<LittleEndian>()
+        read_endian!(self, 4, LittleEndian, read_u32)
     }
 
     fn read_u8le(&mut self) -> Result<u64> {
-        self.read_u64::<LittleEndian>()
+        read_endian!(self, 8, LittleEndian, read_u64)
     }
 
     // -------------------- //
@@ -125,21 +138,21 @@ pub trait Stream: ReadBytesExt + Seek {
     // Big endian
 
     fn read_f4be(&mut self) -> Result<f32> {
-        self.read_f32::<BigEndian>()
+        read_endian!(self, 4, BigEndian, read_f32)
     }
 
     fn read_f8be(&mut self) -> Result<f64> {
-        self.read_f64::<BigEndian>()
+        read_endian!(self, 8, BigEndian, read_f64)
     }
 
     // Little endian
 
     fn read_f4le(&mut self) -> Result<f32> {
-        self.read_f32::<LittleEndian>()
+        read_endian!(self, 4, LittleEndian, read_f32)
     }
 
     fn read_f8le(&mut self) -> Result<f64> {
-        self.read_f64::<LittleEndian>()
+        read_endian!(self, 8, LittleEndian, read_f64)
     }
 
     // ----------- //
@@ -299,6 +312,13 @@ pub trait Stream: ReadBytesExt + Seek {
 }
 
 impl<T: Read + Seek> Stream for T {}
+
+pub trait Struct {
+    fn empty() -> Self where Self : Sized;
+    fn from_file(path: &str) -> std::result::Result<Self, std::io::Error> where Self : Sized;
+    fn new<S: Stream>(stream: &mut S, parent: &Option<Box<Struct>>, root: &Option<Box<Struct>>) -> Self where Self : Sized;
+    fn read<S: Stream>(&mut self, stream: &mut S, parent: &Option<Box<Struct>>, root: &Option<Box<Struct>>) where Self : Sized;
+}
 
 #[cfg(test)]
 mod tests {
