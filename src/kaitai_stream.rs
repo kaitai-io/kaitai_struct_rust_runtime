@@ -21,9 +21,9 @@ pub trait KaitaiStream: Read + Seek {
     fn is_eof(&mut self) -> Result<bool> {
         // TODO: I'm positive there's a better way to do this!
         // See also the `size` implementation
-        let pos = try!(self.pos());
-        let size = try!(Seek::seek(self, SeekFrom::End(0)));
-        try!(Seek::seek(self, SeekFrom::Start(pos)));
+        let pos = self.pos()?;
+        let size = Seek::seek(self, SeekFrom::End(0))?;
+        Seek::seek(self, SeekFrom::Start(pos))?;
         return Ok(pos >= size);
     }
 
@@ -43,9 +43,9 @@ pub trait KaitaiStream: Read + Seek {
 
     fn size(&mut self) -> Result<u64> {
         // TODO: I'm positive there's a better way to do this!
-        let pos = try!(self.pos());
-        let size = try!(Seek::seek(self, SeekFrom::End(0)));
-        try!(Seek::seek(self, SeekFrom::Start(pos)));
+        let pos = self.pos()?;
+        let size = Seek::seek(self, SeekFrom::End(0))?;
+        Seek::seek(self, SeekFrom::Start(pos))?;
         return Ok(size);
     }
 
@@ -55,7 +55,7 @@ pub trait KaitaiStream: Read + Seek {
 
     fn read_s1(&mut self) -> Result<i8> {
         let mut buf = [0; 1];
-        try!(self.read_exact(&mut buf));
+        self.read_exact(&mut buf)?;
         Ok(buf[0] as i8)
     }
 
@@ -93,7 +93,7 @@ pub trait KaitaiStream: Read + Seek {
 
     fn read_u1(&mut self) -> Result<u8> {
         let mut buf = [0; 1];
-        try!(self.read_exact(&mut buf));
+        self.read_exact(&mut buf)?;
         Ok(buf[0])
     }
 
@@ -187,7 +187,7 @@ pub trait KaitaiStream: Read + Seek {
     fn read_str_eos(&mut self, encoding: &str) -> Result<String> {
         match encoding_from_whatwg_label(encoding) {
             Some(enc) => {
-                let buffer = try!(self.read_bytes_full());
+                let buffer = self.read_bytes_full()?;
                 match enc.decode(&buffer, DecoderTrap::Strict) {
                     Ok(s) => Ok(s),
                     Err(e) => panic!("Error decoding string: {}", e),
@@ -200,7 +200,7 @@ pub trait KaitaiStream: Read + Seek {
     fn read_str_byte_limit(&mut self, length: usize, encoding: &str) -> Result<String> {
         match encoding_from_whatwg_label(encoding) {
             Some(enc) => {
-                let buffer = try!(self.read_bytes(length));
+                let buffer = self.read_bytes(length)?;
                 match enc.decode(&buffer, DecoderTrap::Strict) {
                     Ok(s) => Ok(s),
                     Err(e) => panic!("Error decoding string: {}", e),
@@ -219,10 +219,7 @@ pub trait KaitaiStream: Read + Seek {
                  -> Result<String> {
         let enc = match encoding_from_whatwg_label(encoding) {
             Some(enc) => enc,
-            None => { 
-                panic!("Unknown encoding: {}", encoding);
-                unreachable!();
-            }
+            None => panic!("Unknown encoding: {}", encoding),
         };
         let mut buffer = vec![];
         let mut c = vec![0; 1];
@@ -241,8 +238,8 @@ pub trait KaitaiStream: Read + Seek {
                     buffer.push(c[0])
                 }
                 if !consume_terminator {
-                    let pos = try!(self.pos());
-                    try!(Seek::seek(self, SeekFrom::Start((pos - 1) as u64)));
+                    let pos = self.pos()?;
+                    Seek::seek(self, SeekFrom::Start((pos - 1) as u64))?;
                 }
                 break;
             }
@@ -293,7 +290,7 @@ pub trait KaitaiStream: Read + Seek {
                     result[i] = data[i].rotate_left(rot_amount as u32);
                 }
             }
-            _ => return panic!("Unable to rotate a group of {} bytes yet", group_size),
+            _ => panic!("Unable to rotate a group of {} bytes yet", group_size),
         }
         return result;
     }
