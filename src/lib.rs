@@ -12,7 +12,7 @@ impl<'a> From<io::Error> for KaitaiError<'a> {
     }
 }
 
-type Result<'a, T> = std::result::Result<T, KaitaiError<'a>>;
+pub type Result<'a, T> = std::result::Result<T, KaitaiError<'a>>;
 
 pub trait KaitaiStruct<'a>
 {
@@ -25,7 +25,7 @@ pub trait KaitaiStruct<'a>
     where
         Self: Sized;
 
-    //fn read<S: KaitaiStream>(&mut self, stream: &S);
+    fn read<S: KaitaiStream>(&mut self, stream: &mut S) -> Result<'a, ()>;
 }
 
 pub trait KaitaiStream {
