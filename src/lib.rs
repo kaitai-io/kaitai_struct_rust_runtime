@@ -5,7 +5,6 @@ use std::io::Seek;
 #[derive(Debug)]
 pub enum KaitaiError<'a> {
     InvalidContents { actual: &'a [u8] },
-    InvalidKey,
     IoError(io::Error),
 }
 
@@ -25,13 +24,6 @@ pub trait KaitaiStruct<'a>
     fn new<S: KaitaiStream>(stream: &mut S) -> Result<Self>
     where
         Self: Sized;
-
-    /*
-    fn read<S: KaitaiStream<'a>>(
-        &mut self,
-
-    )
-    */
 }
 
 pub trait KaitaiStream {
