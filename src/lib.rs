@@ -1,6 +1,4 @@
 use std::io;
-use std::io::Read;
-use std::io::Seek;
 
 #[derive(Debug)]
 pub enum KaitaiError<'a> {
@@ -21,9 +19,13 @@ pub trait KaitaiStruct<'a>
     type Parent: KaitaiStruct<'a>;
     type Root: KaitaiStruct<'a>;
 
-    fn new<S: KaitaiStream>(stream: &mut S) -> Result<Self>
+    /// Create a new instance of this struct; if we are the root node,
+    /// then both `_parent` and `_root` will be `None`.
+    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Result<'a, Self>
     where
         Self: Sized;
+
+    //fn read<S: KaitaiStream>(&mut self, stream: &S);
 }
 
 pub trait KaitaiStream {
