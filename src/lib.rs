@@ -14,8 +14,7 @@ impl<'a> From<io::Error> for KaitaiError<'a> {
 
 pub type Result<'a, T> = std::result::Result<T, KaitaiError<'a>>;
 
-pub trait KaitaiStruct<'a>
-{
+pub trait KaitaiStruct<'a> {
     type Parent: KaitaiStruct<'a>;
     type Root: KaitaiStruct<'a>;
 
@@ -112,23 +111,23 @@ pub trait KaitaiStream {
 }
 
 struct BytesReader<'a> {
-    bytes: &'a[u8],
+    bytes: &'a [u8],
     pos: usize,
     bits: u8,
     bits_left: u8,
 }
 impl<'a> BytesReader<'a> {
-    fn new(bytes: &'a[u8]) -> Self {
+    fn new(bytes: &'a [u8]) -> Self {
         BytesReader {
             bytes,
             pos: 0,
             bits: 0,
-            bits_left: 0
+            bits_left: 0,
         }
     }
 }
-impl<'a> From<&'a[u8]> for BytesReader<'a> {
-    fn from(b: &'a[u8]) -> Self {
+impl<'a> From<&'a [u8]> for BytesReader<'a> {
+    fn from(b: &'a [u8]) -> Self {
         BytesReader::new(b)
     }
 }
@@ -237,7 +236,13 @@ impl<'a> KaitaiStream for BytesReader<'a> {
         unimplemented!()
     }
 
-    fn read_bytes_term(&mut self, term: char, include: bool, consume: bool, eos_error: bool) -> io::Result<&[u8]> {
+    fn read_bytes_term(
+        &mut self,
+        term: char,
+        include: bool,
+        consume: bool,
+        eos_error: bool,
+    ) -> io::Result<&[u8]> {
         unimplemented!()
     }
 }
