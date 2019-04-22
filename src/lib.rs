@@ -4,6 +4,7 @@ use std::io;
 pub enum KaitaiError<'a> {
     InvalidContents { actual: &'a [u8] },
     IoError(io::Error),
+    UnknownEnum(u64),
 }
 
 impl<'a> From<io::Error> for KaitaiError<'a> {
@@ -15,7 +16,7 @@ impl<'a> From<io::Error> for KaitaiError<'a> {
 pub type Result<'a, T> = std::result::Result<T, KaitaiError<'a>>;
 
 pub trait KaitaiStruct<'a> {
-    type Parent: KaitaiStruct<'a>;
+    type Parent: ?KaitaiStruct<'a>;
     type Root: KaitaiStruct<'a>;
 
     /// Create a new instance of this struct; if we are the root node,
