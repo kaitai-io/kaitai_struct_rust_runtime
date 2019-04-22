@@ -58,7 +58,7 @@ pub trait KStream {
     fn align_to_byte(&mut self) -> io::Result<()>;
     fn read_bits_int(&mut self, n: u32) -> io::Result<u64>;
 
-    fn read_bytes(&mut self, dst: &mut [u8], len: usize) -> io::Result<&[u8]>;
+    fn read_bytes(&mut self, len: usize) -> io::Result<&[u8]>;
     fn read_bytes_full(&mut self) -> io::Result<&[u8]>;
     fn read_bytes_term(
         &mut self,
@@ -70,8 +70,8 @@ pub trait KStream {
 
     /// Verify a magic sequence occurs in the file. Because the size is known at compile-time
     /// (and is generally very small), we ask that our caller pass in a buffer for us.
-    fn ensure_fixed_contents(&mut self, expected: &[u8], buf: &mut [u8]) -> KResult<&[u8]> {
-        let actual = self.read_bytes(buf, expected.len())?;
+    fn ensure_fixed_contents(&mut self, expected: &[u8]) -> KResult<&[u8]> {
+        let actual = self.read_bytes(expected.len())?;
         if actual == expected {
             Ok(actual)
         } else {
@@ -229,7 +229,7 @@ impl<'a> KStream for BytesReader<'a> {
         unimplemented!()
     }
 
-    fn read_bytes(&mut self, buf: &mut [u8], len: usize) -> io::Result<&[u8]> {
+    fn read_bytes(&mut self, len: usize) -> io::Result<&[u8]> {
         unimplemented!()
     }
 
