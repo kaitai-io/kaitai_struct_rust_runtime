@@ -1,34 +1,34 @@
 use std::io;
 
 #[derive(Debug)]
-pub enum KaitaiError<'a> {
+pub enum KError<'a> {
     InvalidContents { actual: &'a [u8] },
     IoError(io::Error),
     UnknownEnum(u64),
 }
 
-impl<'a> From<io::Error> for KaitaiError<'a> {
+impl<'a> From<io::Error> for KError<'a> {
     fn from(e: io::Error) -> Self {
-        KaitaiError::IoError(e)
+        KError::IoError(e)
     }
 }
 
-pub type Result<'a, T> = std::result::Result<T, KaitaiError<'a>>;
+pub type KResult<'a, T> = Result<T, KError<'a>>;
 
-pub trait KaitaiStruct<'a> {
-    type Parent: ?KaitaiStruct<'a>;
-    type Root: KaitaiStruct<'a>;
+pub trait KStruct<'a> {
+    type Parent: ?KStruct<'a>;
+    type Root: KStruct<'a>;
 
     /// Create a new instance of this struct; if we are the root node,
     /// then both `_parent` and `_root` will be `None`.
-    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Result<'a, Self>
+    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> KResult<'a, Self>
     where
         Self: Sized;
 
-    fn read<S: KaitaiStream>(&mut self, stream: &mut S) -> Result<'a, ()>;
+    fn read<S: KStream>(&mut self, stream: &mut S) -> KResult<'a, ()>;
 }
 
-pub trait KaitaiStream {
+pub trait KStream {
     fn is_eof(&self) -> io::Result<bool>;
     fn seek(&mut self, position: u64) -> io::Result<()>;
     fn pos(&self) -> io::Result<u64>;
@@ -70,7 +70,7 @@ pub trait KaitaiStream {
 
     /// Verify a magic sequence occurs in the file. Because the size is known at compile-time
     /// (and is generally very small), we ask that our caller pass in a buffer for us.
-    fn ensure_fixed_contents(&mut self, expected: &[u8], buf: &mut [u8]) -> Result<&[u8]> {
+    fn ensure_fixed_contents(&mut self, expected: &[u8], buf: &mut [u8]) -> KResult<&[u8]> {
         let actual = self.read_bytes(buf, expected.len())?;
         if actual == expected {
             Ok(actual)
@@ -78,7 +78,7 @@ pub trait KaitaiStream {
             // Return what the actual contents were; our caller provided us
             // what was expected so we don't need to return it, and it makes
             // the lifetimes way easier
-            Err(KaitaiError::InvalidContents { actual })
+            Err(KError::InvalidContents { actual })
         }
     }
 
@@ -132,7 +132,7 @@ impl<'a> From<&'a [u8]> for BytesReader<'a> {
         BytesReader::new(b)
     }
 }
-impl<'a> KaitaiStream for BytesReader<'a> {
+impl<'a> KStream for BytesReader<'a> {
     fn is_eof(&self) -> io::Result<bool> {
         unimplemented!()
     }

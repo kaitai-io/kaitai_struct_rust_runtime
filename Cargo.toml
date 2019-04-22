@@ -1,5 +1,5 @@
 [package]
-name = "kaitai_runtime"
+name = "kaitai"
 version = "0.1.0"
 authors = ["Bradlee Speice <bradlee@speice.io>"]
 edition = "2018"
