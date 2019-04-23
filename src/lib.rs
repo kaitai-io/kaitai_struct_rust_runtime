@@ -22,11 +22,13 @@ pub trait KStruct<'a> {
 
     /// Create a new instance of this struct; if we are the root node,
     /// then both `_parent` and `_root` will be `None`.
+    // `_root` is an Option because we need to create a root in the first place
     fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> KResult<'a, Self>
     where
         Self: Sized;
 
-    fn read<S: KStream>(&mut self, stream: &mut S) -> KResult<'a, ()>;
+    /// Parse this struct (and any children) from the supplied stream
+    fn read<S: KStream>(&'a mut self, stream: &mut S) -> KResult<'a, ()>;
 }
 
 #[derive(Debug, Default, Copy, Clone)]
