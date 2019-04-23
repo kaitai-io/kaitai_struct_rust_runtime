@@ -141,6 +141,10 @@ impl<'a> BytesReader<'a> {
             bits_left: 0,
         }
     }
+
+    fn remaining(&self) -> usize {
+        self.bytes.len().checked_sub(self.pos).unwrap_or(0)
+    }
 }
 impl<'a> From<&'a [u8]> for BytesReader<'a> {
     fn from(b: &'a [u8]) -> Self {
@@ -244,12 +248,23 @@ impl<'a> KStream for BytesReader<'a> {
         unimplemented!()
     }
 
-    fn read_bytes(&mut self, _len: usize) -> io::Result<&[u8]> {
-        unimplemented!()
+    fn read_bytes(&mut self, len: usize) -> io::Result<&[u8]> {
+        if len > self.remaining() {
+            return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into())
+        }
+        let slice = &self.bytes[self.pos..self.pos+len];
+        self.pos += len;
+
+        Ok(slice)
     }
 
     fn read_bytes_full(&mut self) -> io::Result<&[u8]> {
-        unimplemented!()
+        if self.remaining() > 0 {
+            self.pos = self.bytes.len();
+            Ok(&self.bytes[self.pos..])
+        } else {
+            Err(io::Error::from(io::ErrorKind::UnexpectedEof).into())
+        }
     }
 
     fn read_bytes_term(
@@ -273,5 +288,28 @@ mod tests {
         let c = BytesReader::bytes_strip_right(&b, 5);
 
         assert_eq!([1, 2, 3, 4], c);
+    }
+
+    #[test]
+    fn basic_read_bytes() {
+        let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let mut reader = BytesReader::from(b.as_slice());
+
+        assert_eq!(
+            reader.read_bytes(4).unwrap(),
+            &[1, 2, 3, 4]
+        );
+        assert_eq!(
+            reader.read_bytes(3).unwrap(),
+            &[5, 6, 7]
+        );
+        assert_eq!(
+            reader.read_bytes(4).unwrap_err().kind(),
+            io::ErrorKind::UnexpectedEof
+        );
+        assert_eq!(
+            reader.read_bytes(1).unwrap(),
+            &[8]
+        );
     }
 }
