@@ -42,7 +42,7 @@ impl<'a> KStruct<'a> for KStructUnit<'a> {
         Ok(KStructUnit { phantom: PhantomData })
     }
 
-    fn read<S: KStream>(&mut self, stream: &mut S) -> Result<(), KError<'a>> {
+    fn read<S: KStream>(&mut self, _stream: &mut S) -> Result<(), KError<'a>> {
         Ok(())
     }
 }
@@ -125,6 +125,7 @@ pub trait KStream {
     }
 }
 
+#[allow(dead_code)]
 struct BytesReader<'a> {
     bytes: &'a [u8],
     pos: usize,
@@ -151,7 +152,7 @@ impl<'a> KStream for BytesReader<'a> {
         unimplemented!()
     }
 
-    fn seek(&mut self, position: u64) -> io::Result<()> {
+    fn seek(&mut self, _position: u64) -> io::Result<()> {
         unimplemented!()
     }
 
@@ -239,11 +240,11 @@ impl<'a> KStream for BytesReader<'a> {
         unimplemented!()
     }
 
-    fn read_bits_int(&mut self, n: u32) -> io::Result<u64> {
+    fn read_bits_int(&mut self, _n: u32) -> io::Result<u64> {
         unimplemented!()
     }
 
-    fn read_bytes(&mut self, len: usize) -> io::Result<&[u8]> {
+    fn read_bytes(&mut self, _len: usize) -> io::Result<&[u8]> {
         unimplemented!()
     }
 
@@ -253,10 +254,10 @@ impl<'a> KStream for BytesReader<'a> {
 
     fn read_bytes_term(
         &mut self,
-        term: char,
-        include: bool,
-        consume: bool,
-        eos_error: bool,
+        _term: char,
+        _include: bool,
+        _consume: bool,
+        _eos_error: bool,
     ) -> io::Result<&[u8]> {
         unimplemented!()
     }
