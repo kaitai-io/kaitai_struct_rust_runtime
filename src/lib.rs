@@ -28,6 +28,21 @@ pub trait KStruct<'a> {
     fn read<S: KStream>(&mut self, stream: &mut S) -> KResult<'a, ()>;
 }
 
+pub struct KStructUnit<'a>;
+impl<'a> KStruct<'a> for KStructUnit<'a> {
+    type Parent = KStructUnit<'a>;
+    type Root = KStructUnit<'a>;
+
+    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Result<Self, KError<'a>> where
+        Self: Sized {
+        Ok(KStructUnit)
+    }
+
+    fn read<S: KStream>(&mut self, stream: &mut S) -> Result<(), KError<'a>> {
+        Ok(())
+    }
+}
+
 pub trait KStream {
     fn is_eof(&self) -> io::Result<bool>;
     fn seek(&mut self, position: u64) -> io::Result<()>;
