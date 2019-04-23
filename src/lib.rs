@@ -1,4 +1,5 @@
 use std::io;
+use std::marker::PhantomData;
 
 #[derive(Debug)]
 pub enum KError<'a> {
@@ -28,14 +29,17 @@ pub trait KStruct<'a> {
     fn read<S: KStream>(&mut self, stream: &mut S) -> KResult<'a, ()>;
 }
 
-pub struct KStructUnit<'a>;
+#[derive(Debug, Default, Copy, Clone)]
+pub struct KStructUnit<'a> {
+    phantom: PhantomData<&'a ()>
+}
 impl<'a> KStruct<'a> for KStructUnit<'a> {
     type Parent = KStructUnit<'a>;
     type Root = KStructUnit<'a>;
 
     fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Result<Self, KError<'a>> where
         Self: Sized {
-        Ok(KStructUnit)
+        Ok(KStructUnit { phantom: PhantomData })
     }
 
     fn read<S: KStream>(&mut self, stream: &mut S) -> Result<(), KError<'a>> {
