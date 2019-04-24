@@ -1,51 +1,65 @@
 use std::io;
 use std::marker::PhantomData;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Needed {
+    Size(usize),
+    Unknown,
+}
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum KError<'a> {
-    InvalidContents { actual: &'a [u8] },
-    IoError(io::Error),
-    UnknownEnum(u64),
+    Incomplete(Needed),
+    UnexpectedContents { actual: &'a [u8] },
+    UnknownVariant(u64),
 }
-
-impl<'a> From<io::Error> for KError<'a> {
-    fn from(e: io::Error) -> Self {
-        KError::IoError(e)
-    }
-}
-
 pub type KResult<'a, T> = Result<T, KError<'a>>;
 
+// TODO: Do we need extra lifetimes for parents/roots?
+// Likely not necessary since everyone effectively lives
+// as long as the stream, but worth looking into
 pub trait KStruct<'a> {
     type Parent: KStruct<'a>;
     type Root: KStruct<'a>;
 
     /// Create a new instance of this struct; if we are the root node,
     /// then both `_parent` and `_root` will be `None`.
-    // `_root` is an Option because we need to create a root in the first place
-    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> KResult<'a, Self>
+    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Self
     where
         Self: Sized;
 
     /// Parse this struct (and any children) from the supplied stream
-    fn read<S: KStream>(&'a mut self, stream: &mut S) -> KResult<'a, ()>;
+    fn read<'s: 'a, S: KStream>(&mut self, stream: &'s mut S) -> KResult<'s, ()>;
+
+    /// Get the root of this parse structure
+    fn root(&self) -> &'a Self::Root;
 }
 
-#[derive(Debug, Default, Copy, Clone)]
+/// Dummy struct used to indicate an absence of value; needed for
+/// root structs to satisfy the associate type bounds in the
+/// `KStruct` trait.
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct KStructUnit<'a> {
-    phantom: PhantomData<&'a ()>
+    phantom: PhantomData<&'a ()>,
 }
 impl<'a> KStruct<'a> for KStructUnit<'a> {
     type Parent = KStructUnit<'a>;
     type Root = KStructUnit<'a>;
 
-    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Result<Self, KError<'a>> where
-        Self: Sized {
-        Ok(KStructUnit { phantom: PhantomData })
+    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Self
+    where
+        Self: Sized,
+    {
+        KStructUnit {
+            phantom: PhantomData,
+        }
     }
 
-    fn read<S: KStream>(&mut self, _stream: &mut S) -> Result<(), KError<'a>> {
+    fn read<'s: 'a, S: KStream>(&mut self, _stream: &'s mut S) -> KResult<'s, ()> {
         Ok(())
+    }
+
+    fn root(&self) -> &'a Self::Root {
+        panic!("Attempted to get root of unit structure.")
     }
 }
 
@@ -79,15 +93,15 @@ pub trait KStream {
     fn align_to_byte(&mut self) -> io::Result<()>;
     fn read_bits_int(&mut self, n: u32) -> io::Result<u64>;
 
-    fn read_bytes(&mut self, len: usize) -> io::Result<&[u8]>;
-    fn read_bytes_full(&mut self) -> io::Result<&[u8]>;
+    fn read_bytes(&mut self, len: usize) -> KResult<&[u8]>;
+    fn read_bytes_full(&mut self) -> KResult<&[u8]>;
     fn read_bytes_term(
         &mut self,
         term: char,
         include: bool,
         consume: bool,
         eos_error: bool,
-    ) -> io::Result<&[u8]>;
+    ) -> KResult<&[u8]>;
 
     fn ensure_fixed_contents(&mut self, expected: &[u8]) -> KResult<&[u8]> {
         let actual = self.read_bytes(expected.len())?;
@@ -97,7 +111,7 @@ pub trait KStream {
             // Return what the actual contents were; our caller provided us
             // what was expected so we don't need to return it, and it makes
             // the lifetimes way easier
-            Err(KError::InvalidContents { actual })
+            Err(KError::UnexpectedContents { actual })
         }
     }
 
@@ -128,7 +142,7 @@ pub trait KStream {
 }
 
 #[allow(dead_code)]
-struct BytesReader<'a> {
+pub struct BytesReader<'a> {
     bytes: &'a [u8],
     pos: usize,
     bits: u8,
@@ -250,22 +264,22 @@ impl<'a> KStream for BytesReader<'a> {
         unimplemented!()
     }
 
-    fn read_bytes(&mut self, len: usize) -> io::Result<&[u8]> {
+    fn read_bytes(&mut self, len: usize) -> KResult<&[u8]> {
         if len > self.remaining() {
-            return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into())
+            return Err(KError::Incomplete(Needed::Size(len - self.remaining())));
         }
-        let slice = &self.bytes[self.pos..self.pos+len];
+        let slice = &self.bytes[self.pos..self.pos + len];
         self.pos += len;
 
         Ok(slice)
     }
 
-    fn read_bytes_full(&mut self) -> io::Result<&[u8]> {
+    fn read_bytes_full(&mut self) -> KResult<&[u8]> {
         if self.remaining() > 0 {
             self.pos = self.bytes.len();
             Ok(&self.bytes[self.pos..])
         } else {
-            Err(io::Error::from(io::ErrorKind::UnexpectedEof).into())
+            Err(KError::Incomplete(Needed::Unknown))
         }
     }
 
@@ -275,7 +289,7 @@ impl<'a> KStream for BytesReader<'a> {
         _include: bool,
         _consume: bool,
         _eos_error: bool,
-    ) -> io::Result<&[u8]> {
+    ) -> KResult<&[u8]> {
         unimplemented!()
     }
 }
@@ -297,21 +311,12 @@ mod tests {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
         let mut reader = BytesReader::from(b.as_slice());
 
+        assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
+        assert_eq!(reader.read_bytes(3).unwrap(), &[5, 6, 7]);
         assert_eq!(
-            reader.read_bytes(4).unwrap(),
-            &[1, 2, 3, 4]
+            reader.read_bytes(4).unwrap_err(),
+            KError::Incomplete(Needed::Size(3))
         );
-        assert_eq!(
-            reader.read_bytes(3).unwrap(),
-            &[5, 6, 7]
-        );
-        assert_eq!(
-            reader.read_bytes(4).unwrap_err().kind(),
-            io::ErrorKind::UnexpectedEof
-        );
-        assert_eq!(
-            reader.read_bytes(1).unwrap(),
-            &[8]
-        );
+        assert_eq!(reader.read_bytes(1).unwrap(), &[8]);
     }
 }
