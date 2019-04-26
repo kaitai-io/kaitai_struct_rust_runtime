@@ -1,5 +1,4 @@
-use std::io;
-use std::marker::PhantomData;
+use std::cell::RefCell;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
@@ -9,101 +8,85 @@ pub enum Needed {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum KError<'a> {
     Incomplete(Needed),
+    MissingRoot,
     UnexpectedContents { actual: &'a [u8] },
     UnknownVariant(u64),
 }
 pub type KResult<'a, T> = Result<T, KError<'a>>;
 
-// TODO: Do we need extra lifetimes for parents/roots?
-// Likely not necessary since everyone effectively lives
-// as long as the stream, but worth looking into
 pub trait KStruct<'a> {
     type Parent: KStruct<'a>;
     type Root: KStruct<'a>;
 
-    /// Create a new instance of this struct; if we are the root node,
-    /// then both `_parent` and `_root` will be `None`.
-    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Self
-    where
-        Self: Sized;
-
     /// Parse this struct (and any children) from the supplied stream
-    fn read<'s: 'a, S: KStream>(&mut self, stream: &'s mut S) -> KResult<'s, ()>;
-
-    /// Get the root of this parse structure
-    fn root(&self) -> &'a Self::Root;
+    fn read<'s: 'a, S: KStream>(
+        &mut self,
+        _io: &'s S,
+        _root: Option<&Self::Root>,
+        _parent: Option<&Self::Parent>,
+    ) -> KResult<'s, ()>;
 }
 
 /// Dummy struct used to indicate an absence of value; needed for
-/// root structs to satisfy the associate type bounds in the
+/// root structs to satisfy the associated type bounds in the
 /// `KStruct` trait.
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
-pub struct KStructUnit<'a> {
-    phantom: PhantomData<&'a ()>,
-}
-impl<'a> KStruct<'a> for KStructUnit<'a> {
-    type Parent = KStructUnit<'a>;
-    type Root = KStructUnit<'a>;
+pub struct KStructUnit;
+impl<'a> KStruct<'a> for KStructUnit {
+    type Parent = KStructUnit;
+    type Root = KStructUnit;
 
-    fn new(_parent: Option<&'a Self::Parent>, _root: Option<&'a Self::Root>) -> Self
-    where
-        Self: Sized,
-    {
-        KStructUnit {
-            phantom: PhantomData,
-        }
-    }
-
-    fn read<'s: 'a, S: KStream>(&mut self, _stream: &'s mut S) -> KResult<'s, ()> {
+    fn read<'s: 'a, S: KStream>(
+        &mut self,
+        _io: &'s S,
+        _root: Option<&Self::Root>,
+        _parent: Option<&Self::Parent>,
+    ) -> KResult<'s, ()> {
         Ok(())
-    }
-
-    fn root(&self) -> &'a Self::Root {
-        panic!("Attempted to get root of unit structure.")
     }
 }
 
 pub trait KStream {
-    fn is_eof(&self) -> io::Result<bool>;
-    fn seek(&mut self, position: u64) -> io::Result<()>;
-    fn pos(&self) -> io::Result<u64>;
-    fn size(&self) -> io::Result<u64>;
+    fn is_eof(&self) -> KResult<bool>;
+    fn seek(&self, position: u64) -> KResult<()>;
+    fn pos(&self) -> KResult<u64>;
+    fn size(&self) -> KResult<u64>;
 
-    fn read_s1(&mut self) -> io::Result<i8>;
-    fn read_s2be(&mut self) -> io::Result<i16>;
-    fn read_s4be(&mut self) -> io::Result<i32>;
-    fn read_s8be(&mut self) -> io::Result<i64>;
-    fn read_s2le(&mut self) -> io::Result<i16>;
-    fn read_s4le(&mut self) -> io::Result<i32>;
-    fn read_s8le(&mut self) -> io::Result<i64>;
+    fn read_s1(&self) -> KResult<i8>;
+    fn read_s2be(&self) -> KResult<i16>;
+    fn read_s4be(&self) -> KResult<i32>;
+    fn read_s8be(&self) -> KResult<i64>;
+    fn read_s2le(&self) -> KResult<i16>;
+    fn read_s4le(&self) -> KResult<i32>;
+    fn read_s8le(&self) -> KResult<i64>;
 
-    fn read_u1(&mut self) -> io::Result<u8>;
-    fn read_u2be(&mut self) -> io::Result<u16>;
-    fn read_u4be(&mut self) -> io::Result<u32>;
-    fn read_u8be(&mut self) -> io::Result<u64>;
-    fn read_u2le(&mut self) -> io::Result<u16>;
-    fn read_u4le(&mut self) -> io::Result<u32>;
-    fn read_u8le(&mut self) -> io::Result<u64>;
+    fn read_u1(&self) -> KResult<u8>;
+    fn read_u2be(&self) -> KResult<u16>;
+    fn read_u4be(&self) -> KResult<u32>;
+    fn read_u8be(&self) -> KResult<u64>;
+    fn read_u2le(&self) -> KResult<u16>;
+    fn read_u4le(&self) -> KResult<u32>;
+    fn read_u8le(&self) -> KResult<u64>;
 
-    fn read_f4be(&mut self) -> io::Result<f32>;
-    fn read_f8be(&mut self) -> io::Result<f64>;
-    fn read_f4le(&mut self) -> io::Result<f32>;
-    fn read_f8le(&mut self) -> io::Result<f64>;
+    fn read_f4be(&self) -> KResult<f32>;
+    fn read_f8be(&self) -> KResult<f64>;
+    fn read_f4le(&self) -> KResult<f32>;
+    fn read_f8le(&self) -> KResult<f64>;
 
-    fn align_to_byte(&mut self) -> io::Result<()>;
-    fn read_bits_int(&mut self, n: u32) -> io::Result<u64>;
+    fn align_to_byte(&self) -> KResult<()>;
+    fn read_bits_int(&self, n: u32) -> KResult<u64>;
 
-    fn read_bytes(&mut self, len: usize) -> KResult<&[u8]>;
-    fn read_bytes_full(&mut self) -> KResult<&[u8]>;
+    fn read_bytes(&self, len: usize) -> KResult<&[u8]>;
+    fn read_bytes_full(&self) -> KResult<&[u8]>;
     fn read_bytes_term(
-        &mut self,
+        &self,
         term: char,
         include: bool,
         consume: bool,
         eos_error: bool,
     ) -> KResult<&[u8]>;
 
-    fn ensure_fixed_contents(&mut self, expected: &[u8]) -> KResult<&[u8]> {
+    fn ensure_fixed_contents(&self, expected: &[u8]) -> KResult<&[u8]> {
         let actual = self.read_bytes(expected.len())?;
         if actual == expected {
             Ok(actual)
@@ -141,154 +124,141 @@ pub trait KStream {
     }
 }
 
-#[allow(dead_code)]
-pub struct BytesReader<'a> {
-    bytes: &'a [u8],
+#[derive(Default)]
+struct BytesReaderState {
     pos: usize,
     bits: u8,
     bits_left: u8,
 }
-impl<'a> BytesReader<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
-        BytesReader {
-            bytes,
-            pos: 0,
-            bits: 0,
-            bits_left: 0,
-        }
-    }
-
-    fn remaining(&self) -> usize {
-        self.bytes.len().checked_sub(self.pos).unwrap_or(0)
-    }
+pub struct BytesReader<'a> {
+    state: RefCell<BytesReaderState>,
+    bytes: &'a [u8],
 }
-impl<'a> From<&'a [u8]> for BytesReader<'a> {
-    fn from(b: &'a [u8]) -> Self {
-        BytesReader::new(b)
+impl<'a> BytesReader<'a> {
+    pub fn new(bytes: &'a [u8]) -> Self {
+        BytesReader {
+            state: RefCell::new(BytesReaderState::default()),
+            bytes,
+        }
     }
 }
 impl<'a> KStream for BytesReader<'a> {
-    fn is_eof(&self) -> io::Result<bool> {
+    fn is_eof(&self) -> KResult<bool> {
         unimplemented!()
     }
 
-    fn seek(&mut self, _position: u64) -> io::Result<()> {
+    fn seek(&self, position: u64) -> KResult<()> {
         unimplemented!()
     }
 
-    fn pos(&self) -> io::Result<u64> {
+    fn pos(&self) -> KResult<u64> {
         unimplemented!()
     }
 
-    fn size(&self) -> io::Result<u64> {
+    fn size(&self) -> KResult<u64> {
         unimplemented!()
     }
 
-    fn read_s1(&mut self) -> io::Result<i8> {
+    fn read_s1(&self) -> KResult<i8> {
         unimplemented!()
     }
 
-    fn read_s2be(&mut self) -> io::Result<i16> {
+    fn read_s2be(&self) -> KResult<i16> {
         unimplemented!()
     }
 
-    fn read_s4be(&mut self) -> io::Result<i32> {
+    fn read_s4be(&self) -> KResult<i32> {
         unimplemented!()
     }
 
-    fn read_s8be(&mut self) -> io::Result<i64> {
+    fn read_s8be(&self) -> KResult<i64> {
         unimplemented!()
     }
 
-    fn read_s2le(&mut self) -> io::Result<i16> {
+    fn read_s2le(&self) -> KResult<i16> {
         unimplemented!()
     }
 
-    fn read_s4le(&mut self) -> io::Result<i32> {
+    fn read_s4le(&self) -> KResult<i32> {
         unimplemented!()
     }
 
-    fn read_s8le(&mut self) -> io::Result<i64> {
+    fn read_s8le(&self) -> KResult<i64> {
         unimplemented!()
     }
 
-    fn read_u1(&mut self) -> io::Result<u8> {
+    fn read_u1(&self) -> KResult<u8> {
         unimplemented!()
     }
 
-    fn read_u2be(&mut self) -> io::Result<u16> {
+    fn read_u2be(&self) -> KResult<u16> {
         unimplemented!()
     }
 
-    fn read_u4be(&mut self) -> io::Result<u32> {
+    fn read_u4be(&self) -> KResult<u32> {
         unimplemented!()
     }
 
-    fn read_u8be(&mut self) -> io::Result<u64> {
+    fn read_u8be(&self) -> KResult<u64> {
         unimplemented!()
     }
 
-    fn read_u2le(&mut self) -> io::Result<u16> {
+    fn read_u2le(&self) -> KResult<u16> {
         unimplemented!()
     }
 
-    fn read_u4le(&mut self) -> io::Result<u32> {
+    fn read_u4le(&self) -> KResult<u32> {
         unimplemented!()
     }
 
-    fn read_u8le(&mut self) -> io::Result<u64> {
+    fn read_u8le(&self) -> KResult<u64> {
         unimplemented!()
     }
 
-    fn read_f4be(&mut self) -> io::Result<f32> {
+    fn read_f4be(&self) -> KResult<f32> {
         unimplemented!()
     }
 
-    fn read_f8be(&mut self) -> io::Result<f64> {
+    fn read_f8be(&self) -> KResult<f64> {
         unimplemented!()
     }
 
-    fn read_f4le(&mut self) -> io::Result<f32> {
+    fn read_f4le(&self) -> KResult<f32> {
         unimplemented!()
     }
 
-    fn read_f8le(&mut self) -> io::Result<f64> {
+    fn read_f8le(&self) -> KResult<f64> {
         unimplemented!()
     }
 
-    fn align_to_byte(&mut self) -> io::Result<()> {
+    fn align_to_byte(&self) -> KResult<()> {
         unimplemented!()
     }
 
-    fn read_bits_int(&mut self, _n: u32) -> io::Result<u64> {
+    fn read_bits_int(&self, n: u32) -> KResult<u64> {
         unimplemented!()
     }
 
-    fn read_bytes(&mut self, len: usize) -> KResult<&[u8]> {
-        if len > self.remaining() {
-            return Err(KError::Incomplete(Needed::Size(len - self.remaining())));
+    fn read_bytes(&self, len: usize) -> KResult<&[u8]> {
+        let cur_pos = self.state.borrow().pos;
+        if len + cur_pos > self.bytes.len() {
+            return Err(KError::Incomplete(Needed::Size(len + cur_pos - self.bytes.len())));
         }
-        let slice = &self.bytes[self.pos..self.pos + len];
-        self.pos += len;
 
-        Ok(slice)
+        self.state.borrow_mut().pos += len;
+        Ok(&self.bytes[cur_pos..cur_pos+len])
     }
 
-    fn read_bytes_full(&mut self) -> KResult<&[u8]> {
-        if self.remaining() > 0 {
-            self.pos = self.bytes.len();
-            Ok(&self.bytes[self.pos..])
-        } else {
-            Err(KError::Incomplete(Needed::Unknown))
-        }
+    fn read_bytes_full(&self) -> KResult<&[u8]> {
+        unimplemented!()
     }
 
     fn read_bytes_term(
-        &mut self,
-        _term: char,
-        _include: bool,
-        _consume: bool,
-        _eos_error: bool,
+        &self,
+        term: char,
+        include: bool,
+        consume: bool,
+        eos_error: bool,
     ) -> KResult<&[u8]> {
         unimplemented!()
     }
@@ -309,7 +279,7 @@ mod tests {
     #[test]
     fn basic_read_bytes() {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let mut reader = BytesReader::from(b.as_slice());
+        let mut reader = BytesReader::new(&b[..]);
 
         assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
         assert_eq!(reader.read_bytes(3).unwrap(), &[5, 6, 7]);
