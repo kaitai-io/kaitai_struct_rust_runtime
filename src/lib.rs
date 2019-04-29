@@ -122,6 +122,8 @@ pub trait KStream {
 
         &bytes[..new_len]
     }
+
+    // TODO: `process_*` directives
 }
 
 #[derive(Default)]
