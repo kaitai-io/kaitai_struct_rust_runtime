@@ -244,11 +244,13 @@ impl<'a> KStream for BytesReader<'a> {
     fn read_bytes(&self, len: usize) -> KResult<&[u8]> {
         let cur_pos = self.state.borrow().pos;
         if len + cur_pos > self.bytes.len() {
-            return Err(KError::Incomplete(Needed::Size(len + cur_pos - self.bytes.len())));
+            return Err(KError::Incomplete(Needed::Size(
+                len + cur_pos - self.bytes.len(),
+            )));
         }
 
         self.state.borrow_mut().pos += len;
-        Ok(&self.bytes[cur_pos..cur_pos+len])
+        Ok(&self.bytes[cur_pos..cur_pos + len])
     }
 
     fn read_bytes_full(&self) -> KResult<&[u8]> {
