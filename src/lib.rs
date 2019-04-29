@@ -8,7 +8,9 @@ pub enum Needed {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum KError<'a> {
     Incomplete(Needed),
+    Encoding { expected: &'static str },
     MissingRoot,
+    MissingParent,
     UnexpectedContents { actual: &'a [u8] },
     UnknownVariant(u64),
 }
