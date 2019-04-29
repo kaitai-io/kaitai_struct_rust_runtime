@@ -14,7 +14,7 @@ pub enum KError<'a> {
 }
 pub type KResult<'a, T> = Result<T, KError<'a>>;
 
-pub trait KStruct<'a> {
+pub trait KStruct<'a>: Default {
     type Parent: KStruct<'a>;
     type Root: KStruct<'a>;
 
