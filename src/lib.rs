@@ -236,7 +236,11 @@ impl<'a> KStream for BytesReader<'a> {
     }
 
     fn align_to_byte(&self) -> KResult<()> {
-        unimplemented!()
+        let mut inner = self.state.borrow_mut();
+        inner.bits = 0;
+        inner.bits_left = 0;
+
+        Ok(())
     }
 
     // TODO: Clean up the casting nightmare
