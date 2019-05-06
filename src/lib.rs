@@ -82,7 +82,7 @@ pub trait KStream {
     fn read_bytes_full(&self) -> KResult<&[u8]>;
     fn read_bytes_term(
         &self,
-        term: char,
+        term: u8,
         include: bool,
         consume: bool,
         eos_error: bool,
@@ -295,7 +295,7 @@ impl<'a> KStream for BytesReader<'a> {
 
     fn read_bytes_term(
         &self,
-        term: char,
+        term: u8,
         include: bool,
         consume: bool,
         eos_error: bool,
