@@ -1,3 +1,4 @@
+use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use std::cell::RefCell;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -55,26 +56,62 @@ pub trait KStream {
     fn pos(&self) -> KResult<u64>;
     fn size(&self) -> KResult<u64>;
 
-    fn read_s1(&self) -> KResult<i8>;
-    fn read_s2be(&self) -> KResult<i16>;
-    fn read_s4be(&self) -> KResult<i32>;
-    fn read_s8be(&self) -> KResult<i64>;
-    fn read_s2le(&self) -> KResult<i16>;
-    fn read_s4le(&self) -> KResult<i32>;
-    fn read_s8le(&self) -> KResult<i64>;
+    fn read_s1(&self) -> KResult<i8> {
+        Ok(self.read_bytes(1)?[0] as i8)
+    }
+    fn read_s2be(&self) -> KResult<i16> {
+        Ok(BigEndian::read_i16(self.read_bytes(2)?))
+    }
+    fn read_s4be(&self) -> KResult<i32> {
+        Ok(BigEndian::read_i32(self.read_bytes(4)?))
+    }
+    fn read_s8be(&self) -> KResult<i64> {
+        Ok(BigEndian::read_i64(self.read_bytes(8)?))
+    }
+    fn read_s2le(&self) -> KResult<i16> {
+        Ok(LittleEndian::read_i16(self.read_bytes(2)?))
+    }
+    fn read_s4le(&self) -> KResult<i32> {
+        Ok(LittleEndian::read_i32(self.read_bytes(4)?))
+    }
+    fn read_s8le(&self) -> KResult<i64> {
+        Ok(LittleEndian::read_i64(self.read_bytes(8)?))
+    }
 
-    fn read_u1(&self) -> KResult<u8>;
-    fn read_u2be(&self) -> KResult<u16>;
-    fn read_u4be(&self) -> KResult<u32>;
-    fn read_u8be(&self) -> KResult<u64>;
-    fn read_u2le(&self) -> KResult<u16>;
-    fn read_u4le(&self) -> KResult<u32>;
-    fn read_u8le(&self) -> KResult<u64>;
+    fn read_u1(&self) -> KResult<u8> {
+        Ok(self.read_bytes(1)?[0] as u8)
+    }
+    fn read_u2be(&self) -> KResult<u16> {
+        Ok(BigEndian::read_u16(self.read_bytes(2)?))
+    }
+    fn read_u4be(&self) -> KResult<u32> {
+        Ok(BigEndian::read_u32(self.read_bytes(4)?))
+    }
+    fn read_u8be(&self) -> KResult<u64> {
+        Ok(BigEndian::read_u64(self.read_bytes(8)?))
+    }
+    fn read_u2le(&self) -> KResult<u16> {
+        Ok(LittleEndian::read_u16(self.read_bytes(2)?))
+    }
+    fn read_u4le(&self) -> KResult<u32> {
+        Ok(LittleEndian::read_u32(self.read_bytes(4)?))
+    }
+    fn read_u8le(&self) -> KResult<u64> {
+        Ok(LittleEndian::read_u64(self.read_bytes(8)?))
+    }
 
-    fn read_f4be(&self) -> KResult<f32>;
-    fn read_f8be(&self) -> KResult<f64>;
-    fn read_f4le(&self) -> KResult<f32>;
-    fn read_f8le(&self) -> KResult<f64>;
+    fn read_f4be(&self) -> KResult<f32> {
+        Ok(BigEndian::read_f32(self.read_bytes(4)?))
+    }
+    fn read_f8be(&self) -> KResult<f64> {
+        Ok(BigEndian::read_f64(self.read_bytes(8)?))
+    }
+    fn read_f4le(&self) -> KResult<f32> {
+        Ok(LittleEndian::read_f32(self.read_bytes(4)?))
+    }
+    fn read_f8le(&self) -> KResult<f64> {
+        Ok(LittleEndian::read_f64(self.read_bytes(8)?))
+    }
 
     fn align_to_byte(&self) -> KResult<()>;
     fn read_bits_int(&self, n: usize) -> KResult<u64>;
@@ -161,78 +198,6 @@ impl<'a> KStream for BytesReader<'a> {
     }
 
     fn size(&self) -> KResult<u64> {
-        unimplemented!()
-    }
-
-    fn read_s1(&self) -> KResult<i8> {
-        unimplemented!()
-    }
-
-    fn read_s2be(&self) -> KResult<i16> {
-        unimplemented!()
-    }
-
-    fn read_s4be(&self) -> KResult<i32> {
-        unimplemented!()
-    }
-
-    fn read_s8be(&self) -> KResult<i64> {
-        unimplemented!()
-    }
-
-    fn read_s2le(&self) -> KResult<i16> {
-        unimplemented!()
-    }
-
-    fn read_s4le(&self) -> KResult<i32> {
-        unimplemented!()
-    }
-
-    fn read_s8le(&self) -> KResult<i64> {
-        unimplemented!()
-    }
-
-    fn read_u1(&self) -> KResult<u8> {
-        unimplemented!()
-    }
-
-    fn read_u2be(&self) -> KResult<u16> {
-        unimplemented!()
-    }
-
-    fn read_u4be(&self) -> KResult<u32> {
-        unimplemented!()
-    }
-
-    fn read_u8be(&self) -> KResult<u64> {
-        unimplemented!()
-    }
-
-    fn read_u2le(&self) -> KResult<u16> {
-        unimplemented!()
-    }
-
-    fn read_u4le(&self) -> KResult<u32> {
-        unimplemented!()
-    }
-
-    fn read_u8le(&self) -> KResult<u64> {
-        unimplemented!()
-    }
-
-    fn read_f4be(&self) -> KResult<f32> {
-        unimplemented!()
-    }
-
-    fn read_f8be(&self) -> KResult<f64> {
-        unimplemented!()
-    }
-
-    fn read_f4le(&self) -> KResult<f32> {
-        unimplemented!()
-    }
-
-    fn read_f8le(&self) -> KResult<f64> {
         unimplemented!()
     }
 
@@ -323,7 +288,7 @@ mod tests {
     #[test]
     fn basic_read_bytes() {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
 
         assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
         assert_eq!(reader.read_bytes(3).unwrap(), &[5, 6, 7]);
@@ -337,7 +302,7 @@ mod tests {
     #[test]
     fn read_bits_single() {
         let b = vec![0x80];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
 
         assert_eq!(reader.read_bits_int(1).unwrap(), 1);
     }
@@ -346,7 +311,7 @@ mod tests {
     fn read_bits_multiple() {
         // 0xA0
         let b = vec![0b10100000];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
 
         assert_eq!(reader.read_bits_int(1).unwrap(), 1);
         assert_eq!(reader.read_bits_int(1).unwrap(), 0);
@@ -356,7 +321,7 @@ mod tests {
     #[test]
     fn read_bits_large() {
         let b = vec![0b10100000];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
 
         assert_eq!(reader.read_bits_int(3).unwrap(), 5);
     }
@@ -364,7 +329,7 @@ mod tests {
     #[test]
     fn read_bits_span() {
         let b = vec![0x01, 0x80];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
 
         assert_eq!(reader.read_bits_int(9).unwrap(), 3);
     }
@@ -372,7 +337,7 @@ mod tests {
     #[test]
     fn read_bits_too_large() {
         let b: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
 
         assert_eq!(reader.read_bits_int(65).unwrap_err(), KError::ReadBitsTooLarge { requested: 65 })
     }

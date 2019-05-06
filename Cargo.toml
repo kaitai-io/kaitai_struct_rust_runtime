@@ -5,3 +5,4 @@ authors = ["Bradlee Speice <bradlee@speice.io>"]
 edition = "2018"
 
 [dependencies]
+byteorder = "1.3.1"
