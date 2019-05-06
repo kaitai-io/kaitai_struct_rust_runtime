@@ -12,7 +12,7 @@ pub enum KError<'a> {
     MissingRoot,
     MissingParent,
     UnexpectedContents { actual: &'a [u8] },
-    UnknownVariant(u64),
+    UnknownVariant(i64),
 }
 pub type KResult<'a, T> = Result<T, KError<'a>>;
 
