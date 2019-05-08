@@ -10,6 +10,7 @@ pub enum Needed {
 pub enum KError<'a> {
     Incomplete(Needed),
     Encoding { expected: &'static str },
+    MissingInstanceValue,
     MissingRoot,
     MissingParent,
     ReadBitsTooLarge { requested: usize },
