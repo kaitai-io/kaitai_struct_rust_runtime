@@ -76,4 +76,6 @@ fn basic_parse() {
 
     let mut gp = Grandparent::default();
     gp.read(&r, None, KStructUnit::parent_stack());
+
+    assert_eq!(gp.value[0], gp.parent.unwrap().child.unwrap().gp_value);
 }
