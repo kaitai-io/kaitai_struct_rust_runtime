@@ -20,16 +20,16 @@ pub enum KError<'a> {
 }
 pub type KResult<'a, T> = Result<T, KError<'a>>;
 
-pub trait KStruct<'a>: Default {
-    type Parent: KStruct<'a>;
-    type Root: KStruct<'a>;
+pub trait KStruct<'r, 's: 'r>: Default {
+    type Root: KStruct<'r, 's>;
+    type ParentStack;
 
     /// Parse this struct (and any children) from the supplied stream
-    fn read<'s: 'a, S: KStream>(
+    fn read<S: KStream>(
         &mut self,
         _io: &'s S,
-        _root: Option<&Self::Root>,
-        _parent: Option<&Self::Parent>,
+        _root: Option<&'r Self::Root>,
+        _parent: TypedStack<Self::ParentStack>,
     ) -> KResult<'s, ()>;
 }
 
@@ -38,17 +38,52 @@ pub trait KStruct<'a>: Default {
 /// `KStruct` trait.
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct KStructUnit;
-impl<'a> KStruct<'a> for KStructUnit {
-    type Parent = KStructUnit;
+impl KStructUnit {
+    pub fn parent_stack() -> TypedStack<(KStructUnit)> {
+        TypedStack { current: (KStructUnit) }
+    }
+}
+impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
     type Root = KStructUnit;
+    type ParentStack = (KStructUnit);
 
-    fn read<'s: 'a, S: KStream>(
+    fn read<S: KStream>(
         &mut self,
         _io: &'s S,
-        _root: Option<&Self::Root>,
-        _parent: Option<&Self::Parent>,
+        _root: Option<&'r Self::Root>,
+        _parent: TypedStack<Self::ParentStack>,
     ) -> KResult<'s, ()> {
         Ok(())
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TypedStack<C> {
+    current: C,
+}
+impl<C> TypedStack<C>
+where
+    C: Clone,
+{
+    pub fn push<N>(&self, next: N) -> TypedStack<(N, C)> {
+        TypedStack {
+            current: (next, self.current.clone()),
+        }
+    }
+}
+impl<C, P> TypedStack<(C, P)>
+where
+    C: Clone,
+    P: Clone,
+{
+    pub fn peek(&self) -> &C {
+        &self.current.0
+    }
+
+    pub fn pop(&self) -> TypedStack<(P)> {
+        TypedStack {
+            current: (self.current.clone().1),
+        }
     }
 }
 
@@ -276,25 +311,41 @@ impl<'a> KStream for BytesReader<'a> {
 }
 
 macro_rules! kf_max {
-    ($i: ident, $t: ty) => (
+    ($i: ident, $t: ty) => {
         pub fn $i<'a>(first: Option<&'a $t>, second: &'a $t) -> Option<&'a $t> {
-            if second.is_nan() { first }
-            else if first.is_none() { Some(second) }
-            else { if first.unwrap() < second { Some(second) } else { first } }
+            if second.is_nan() {
+                first
+            } else if first.is_none() {
+                Some(second)
+            } else {
+                if first.unwrap() < second {
+                    Some(second)
+                } else {
+                    first
+                }
+            }
         }
-    )
+    };
 }
 kf_max!(kf32_max, f32);
 kf_max!(kf64_max, f64);
 
 macro_rules! kf_min {
-    ($i: ident, $t: ty) => (
+    ($i: ident, $t: ty) => {
         pub fn $i<'a>(first: Option<&'a $t>, second: &'a $t) -> Option<&'a $t> {
-            if second.is_nan() { first }
-            else if first.is_none() { Some(second) }
-            else { if first.unwrap() < second { first } else { Some(second) } }
+            if second.is_nan() {
+                first
+            } else if first.is_none() {
+                Some(second)
+            } else {
+                if first.unwrap() < second {
+                    first
+                } else {
+                    Some(second)
+                }
+            }
         }
-    )
+    };
 }
 kf_min!(kf32_min, f32);
 kf_min!(kf64_min, f64);
@@ -365,6 +416,19 @@ mod tests {
         let b: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
         let reader = BytesReader::new(&b[..]);
 
-        assert_eq!(reader.read_bits_int(65).unwrap_err(), KError::ReadBitsTooLarge { requested: 65 })
+        assert_eq!(
+            reader.read_bits_int(65).unwrap_err(),
+            KError::ReadBitsTooLarge { requested: 65 }
+        )
+    }
+
+    #[test]
+    fn stack_clone() {
+        let t = TypedStack { current: () };
+        let t2: TypedStack<(u8, ())> = t.push(12);
+        let t3: TypedStack<(u16, (u8, ()))> = t2.push(14);
+
+        assert_eq!(*t3.peek(), 14);
+        assert_eq!(*t3.pop().peek(), *t2.peek());
     }
 }

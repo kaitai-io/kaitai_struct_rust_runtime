@@ -1,52 +1,48 @@
 //! Example using hand-coded structs to validate that the borrow checker
 //! will allow our code to actually run
 
-use kaitai::{BytesReader, KError, KResult, KStream, KStruct, KStructUnit};
+use kaitai::{BytesReader, KError, KResult, KStream, KStruct, KStructUnit, TypedStack};
 
 #[derive(Debug, PartialEq, Clone, Default)]
-struct TestRootStruct<'a> {
-    pub bytes: &'a [u8],
-    pub child: Option<TestChildStruct<'a>>,
+struct TestRootStruct<'s> {
+    pub bytes: &'s [u8],
+    pub child: Option<TestChildStruct<'s>>,
 }
 #[derive(Debug, PartialEq, Clone, Default)]
-struct TestChildStruct<'a> {
-    pub bytes: &'a [u8],
-    pub root_bytes: &'a [u8],
+struct TestChildStruct<'s> {
+    pub bytes: &'s [u8],
+    pub root_bytes: &'s [u8],
 }
 
-impl<'a> KStruct<'a> for TestRootStruct<'a> {
-    type Parent = KStructUnit;
-    type Root = TestRootStruct<'a>;
+impl<'r, 's: 'r> KStruct<'r, 's> for TestRootStruct<'s> {
+    type Root = Self;
+    type ParentStack = (KStructUnit);
 
-    fn read<'s: 'a, S: KStream>(
+    fn read<S: KStream>(
         &mut self,
         _io: &'s S,
-        _root: Option<&Self::Root>,
-        _parent: Option<&Self::Parent>,
+        _root: Option<&'r Self::Root>,
+        _parent: TypedStack<Self::ParentStack>,
     ) -> KResult<'s, ()> {
         self.bytes = _io.read_bytes(1)?;
 
-        // TODO: `new` method in KStruct?
         let mut child = TestChildStruct::default();
-        // Implementation note: because callers of `read` can't call us as
-        // `struct.read(_io, Some(struct), None)`, we have to use the `or`
-        // call below to give an immutable copy of ourselves to the child
-        child.read(_io, _root.or(Some(self)), Some(self))?;
+        child.read(_io, Some(self), _parent.push(self))?;
         self.child = Some(child);
 
         Ok(())
     }
 }
 
-impl<'a> KStruct<'a> for TestChildStruct<'a> {
-    type Parent = TestRootStruct<'a>;
-    type Root = TestRootStruct<'a>;
+impl<'r, 's: 'r> KStruct<'r, 's> for TestChildStruct<'s> {
+    type Root = <TestRootStruct<'s> as KStruct<'r, 's>>::Root;
+    type ParentStack = (&'r TestRootStruct<'s>, <TestRootStruct<'s> as KStruct<'r, 's>>::ParentStack);
 
-    fn read<'s: 'a, S: KStream>(
+    fn read<S: KStream>(
         &mut self,
         _io: &'s S,
-        _root: Option<&Self::Root>,
-        _parent: Option<&Self::Parent>,
+        _root: Option<&'r Self::Root>,
+        _parent: TypedStack<Self::ParentStack>,
     ) -> KResult<'s, ()> {
         self.bytes = _io.read_bytes(1).unwrap();
         _root.map(|r| self.root_bytes = r.bytes).ok_or(KError::MissingRoot)?;
@@ -61,7 +57,7 @@ fn basic_parse() {
     let mut reader = BytesReader::new(&bytes);
 
     let mut root = TestRootStruct::default();
-    let res = root.read(&mut reader, None, None);
+    let res = root.read(&mut reader, None, KStructUnit::parent_stack());
     assert!(res.is_ok());
 
     assert_eq!([1], root.bytes);
