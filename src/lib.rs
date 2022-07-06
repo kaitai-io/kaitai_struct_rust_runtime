@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use std::cell::RefCell;
+use std::{cell::RefCell, string::FromUtf16Error};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
@@ -12,7 +12,7 @@ pub enum Needed {
 pub enum KError<'a> {
     Incomplete(Needed),
     EmptyIterator,
-    Encoding { expected: &'static str },
+    Encoding { desc: String },
     MissingInstanceValue,
     MissingRoot,
     MissingParent,
@@ -298,7 +298,10 @@ impl<'a> KStream for BytesReader<'a> {
     }
 
     fn read_bytes_full(&self) -> KResult<&[u8]> {
-        unimplemented!()
+        let cur_pos = self.state.borrow().pos;
+        self.state.borrow_mut().pos = self.bytes.len();
+        Ok(&self.bytes[cur_pos..])
+
     }
 
     fn read_bytes_term(
@@ -310,6 +313,18 @@ impl<'a> KStream for BytesReader<'a> {
     ) -> KResult<&[u8]> {
         unimplemented!()
     }
+}
+
+pub fn to_utf16_string(
+     bytes: &[u8]
+) -> KResult<String> {
+    let (front, slice, back) = unsafe {
+        bytes.align_to::<u16>()
+    };
+    if front.is_empty() && back.is_empty() {
+        return String::from_utf16(slice).map_err(|e| KError::Encoding { desc: format!("UTF-16 error: {}", e) });
+    }
+    Err(KError::Encoding{ desc: format!("front {}, back {}", front.len(), back.len())})
 }
 
 macro_rules! kf_max {
