@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use std::cell::RefCell;
 
@@ -39,13 +41,13 @@ pub trait KStruct<'r, 's: 'r>: Default {
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct KStructUnit;
 impl KStructUnit {
-    pub fn parent_stack() -> TypedStack<(KStructUnit)> {
+    pub fn parent_stack() -> TypedStack<KStructUnit> {
         TypedStack { current: (KStructUnit) }
     }
 }
 impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
     type Root = KStructUnit;
-    type ParentStack = (KStructUnit);
+    type ParentStack = KStructUnit;
 
     fn read<S: KStream>(
         &mut self,
@@ -80,7 +82,7 @@ where
         &self.current.0
     }
 
-    pub fn pop(&self) -> TypedStack<(P)> {
+    pub fn pop(&self) -> TypedStack<P> {
         TypedStack {
             current: (self.current.clone().1),
         }
