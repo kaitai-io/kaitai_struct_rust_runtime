@@ -90,10 +90,11 @@ where
 }
 
 pub trait KStream {
-    fn is_eof(&self) -> KResult<bool>;
+    fn is_eof(&self) -> bool;
     fn seek(&self, position: u64) -> KResult<()>;
-    fn pos(&self) -> KResult<u64>;
-    fn size(&self) -> KResult<u64>;
+    fn pos(&self) -> usize;
+    fn size(&self) -> usize;
+    fn set_limit(&self, max_len: usize) -> &Self;
 
     fn read_s1(&self) -> KResult<i8> {
         Ok(self.read_bytes(1)?[0] as i8)
@@ -208,6 +209,7 @@ pub trait KStream {
 #[derive(Default)]
 struct BytesReaderState {
     pos: usize,
+    max_pos: usize,
     bits: u64,
     bits_left: i64,
 }
@@ -224,20 +226,37 @@ impl<'a> BytesReader<'a> {
     }
 }
 impl<'a> KStream for BytesReader<'a> {
-    fn is_eof(&self) -> KResult<bool> {
-        unimplemented!()
+    fn is_eof(&self) -> bool {
+        self.pos() == self.size()
     }
 
     fn seek(&self, position: u64) -> KResult<()> {
         unimplemented!()
     }
 
-    fn pos(&self) -> KResult<u64> {
-        unimplemented!()
+    fn pos(&self) -> usize {
+        self.state.borrow().pos
     }
 
-    fn size(&self) -> KResult<u64> {
-        unimplemented!()
+    fn size(&self) -> usize {
+        let cur_pos = self.state.borrow().pos;
+        if self.state.borrow().max_pos > 0 {
+            self.state.borrow().max_pos
+        } else {
+            self.bytes.len()
+        }
+    }
+
+    fn set_limit(&self, max_len: usize) -> &BytesReader<'a> {
+        if max_len > 0 {
+            let new_lim = self.state.borrow().pos + max_len;
+            if new_lim < self.bytes.len() {
+                self.state.borrow_mut().max_pos = new_lim;
+            }
+        } else {
+            self.state.borrow_mut().max_pos = 0;
+        }
+        self
     }
 
     fn align_to_byte(&self) -> KResult<()> {
@@ -287,9 +306,9 @@ impl<'a> KStream for BytesReader<'a> {
 
     fn read_bytes(&self, len: usize) -> KResult<&[u8]> {
         let cur_pos = self.state.borrow().pos;
-        if len + cur_pos > self.bytes.len() {
+        if len + cur_pos > self.size() {
             return Err(KError::Incomplete(Needed::Size(
-                len + cur_pos - self.bytes.len(),
+                len + cur_pos - self.size(),
             )));
         }
 
@@ -299,8 +318,8 @@ impl<'a> KStream for BytesReader<'a> {
 
     fn read_bytes_full(&self) -> KResult<&[u8]> {
         let cur_pos = self.state.borrow().pos;
-        self.state.borrow_mut().pos = self.bytes.len();
-        Ok(&self.bytes[cur_pos..])
+        self.state.borrow_mut().pos = self.size();
+        Ok(&self.bytes[cur_pos..self.size()])
 
     }
 
@@ -315,16 +334,19 @@ impl<'a> KStream for BytesReader<'a> {
     }
 }
 
-pub fn to_utf16_string(
-     bytes: &[u8]
-) -> KResult<String> {
-    let (front, slice, back) = unsafe {
-        bytes.align_to::<u16>()
-    };
-    if front.is_empty() && back.is_empty() {
-        return String::from_utf16(slice).map_err(|e| KError::Encoding { desc: format!("UTF-16 error: {}", e) });
+use encoding::{Encoding, DecoderTrap};
+use encoding::label::encoding_from_whatwg_label;
+
+pub fn decode_string<'a>(
+     bytes: &'a [u8],
+     label: &'a str
+) -> KResult<'a, String> {
+
+    if let Some(enc) = encoding_from_whatwg_label(label) {
+        return enc.decode(bytes, DecoderTrap::Replace).map_err(|e| KError::Encoding { desc: e.to_string() });
     }
-    Err(KError::Encoding{ desc: format!("front {}, back {}", front.len(), back.len())})
+
+    Err(KError::Encoding{ desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label)})
 }
 
 macro_rules! kf_max {
@@ -391,6 +413,23 @@ mod tests {
             KError::Incomplete(Needed::Size(3))
         );
         assert_eq!(reader.read_bytes(1).unwrap(), &[8]);
+    }
+
+    #[test]
+    fn basic_read_bytes_limit() {
+        let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let reader = BytesReader::new(&b[..]);
+
+        assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
+        reader.set_limit(2);
+        assert_eq!(reader.read_bytes_full().unwrap(), &[5, 6]);
+        reader.set_limit(1);
+        assert_eq!(
+            reader.read_bytes(2).unwrap_err(),
+            KError::Incomplete(Needed::Size(1))
+        );
+        reader.set_limit(0);
+        assert_eq!(reader.read_bytes(2).unwrap(), &[7, 8]);
     }
 
     #[test]
