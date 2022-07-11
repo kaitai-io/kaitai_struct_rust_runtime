@@ -59,7 +59,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct TypedStack<C> {
     current: C,
 }
