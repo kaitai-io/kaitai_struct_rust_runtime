@@ -180,7 +180,7 @@ pub trait KStream {
 
     /// Return a byte array that is sized to exclude all trailing instances of the
     /// padding character.
-    fn bytes_strip_right(bytes: &[u8], pad: u8) -> &[u8] {
+    fn bytes_strip_right<'a>(&'a self, bytes: &'a [u8], pad: u8) -> &'a [u8] {
         let mut new_len = bytes.len();
         while new_len > 0 && bytes[new_len - 1] == pad {
             new_len -= 1;
@@ -190,7 +190,7 @@ pub trait KStream {
 
     /// Return a byte array that contains all bytes up until the
     /// termination byte. Can optionally include the termination byte as well.
-    fn bytes_terminate(bytes: &[u8], term: u8, include_term: bool) -> &[u8] {
+    fn bytes_terminate<'a>(&'a self, bytes: &'a [u8], term: u8, include_term: bool) -> &'a [u8] {
         let mut new_len = 0;
         while bytes[new_len] != term && new_len < bytes.len() {
             new_len += 1;
