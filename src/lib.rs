@@ -1,8 +1,12 @@
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
+<<<<<<< HEAD
 use std::cell::RefCell;
 use utf16string::WStr;
+=======
+use std::{cell::RefCell, string::FromUtf16Error};
+>>>>>>> origin/master
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
@@ -10,18 +14,19 @@ pub enum Needed {
     Unknown,
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum KError<'a> {
+pub enum KError {
     Incomplete(Needed),
     EmptyIterator,
-    Encoding { expected: &'static str },
+    Encoding { desc: String },
     MissingInstanceValue,
     MissingRoot,
     MissingParent,
     ReadBitsTooLarge { requested: usize },
-    UnexpectedContents { actual: &'a [u8] },
+    UnexpectedContents { actual: Vec<u8> },
     UnknownVariant(i64),
+    EncounteredEOF,
 }
-pub type KResult<'a, T> = Result<T, KError<'a>>;
+pub type KResult<T> = Result<T, KError>;
 
 pub trait KStruct<'r, 's: 'r>: Default {
     type Root: KStruct<'r, 's>;
@@ -33,7 +38,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: TypedStack<Self::ParentStack>,
-    ) -> KResult<'s, ()>;
+    ) -> KResult<()>;
 }
 
 /// Dummy struct used to indicate an absence of value; needed for
@@ -55,7 +60,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: TypedStack<Self::ParentStack>,
-    ) -> KResult<'s, ()> {
+    ) -> KResult<()> {
         Ok(())
     }
 }
@@ -91,10 +96,10 @@ where
 }
 
 pub trait KStream {
-    fn is_eof(&self) -> KResult<bool>;
+    fn is_eof(&self) -> bool;
     fn seek(&self, position: u64) -> KResult<()>;
-    fn pos(&self) -> KResult<u64>;
-    fn size(&self) -> KResult<u64>;
+    fn pos(&self) -> usize;
+    fn size(&self) -> usize;
 
     fn read_s1(&self) -> KResult<i8> {
         Ok(self.read_bytes(1)?[0] as i8)
@@ -174,13 +179,13 @@ pub trait KStream {
             // Return what the actual contents were; our caller provided us
             // what was expected so we don't need to return it, and it makes
             // the lifetimes way easier
-            Err(KError::UnexpectedContents { actual })
+            Err(KError::UnexpectedContents { actual: actual.to_vec() })
         }
     }
 
     /// Return a byte array that is sized to exclude all trailing instances of the
     /// padding character.
-    fn bytes_strip_right(bytes: &[u8], pad: u8) -> &[u8] {
+    fn bytes_strip_right<'a>(&'a self, bytes: &'a [u8], pad: u8) -> &'a [u8] {
         let mut new_len = bytes.len();
         while new_len > 0 && bytes[new_len - 1] == pad {
             new_len -= 1;
@@ -190,7 +195,7 @@ pub trait KStream {
 
     /// Return a byte array that contains all bytes up until the
     /// termination byte. Can optionally include the termination byte as well.
-    fn bytes_terminate(bytes: &[u8], term: u8, include_term: bool) -> &[u8] {
+    fn bytes_terminate<'a>(&'a self, bytes: &'a [u8], term: u8, include_term: bool) -> &'a [u8] {
         let mut new_len = 0;
         while bytes[new_len] != term && new_len < bytes.len() {
             new_len += 1;
@@ -225,20 +230,20 @@ impl<'a> BytesReader<'a> {
     }
 }
 impl<'a> KStream for BytesReader<'a> {
-    fn is_eof(&self) -> KResult<bool> {
-        unimplemented!()
+    fn is_eof(&self) -> bool {
+        self.pos() == self.size()
     }
 
     fn seek(&self, position: u64) -> KResult<()> {
         unimplemented!()
     }
 
-    fn pos(&self) -> KResult<u64> {
-        unimplemented!()
+    fn pos(&self) -> usize {
+        self.state.borrow().pos
     }
 
-    fn size(&self) -> KResult<u64> {
-        unimplemented!()
+    fn size(&self) -> usize {
+        self.bytes.len()
     }
 
     fn align_to_byte(&self) -> KResult<()> {
@@ -288,9 +293,9 @@ impl<'a> KStream for BytesReader<'a> {
 
     fn read_bytes(&self, len: usize) -> KResult<&[u8]> {
         let cur_pos = self.state.borrow().pos;
-        if len + cur_pos > self.bytes.len() {
+        if len + cur_pos > self.size() {
             return Err(KError::Incomplete(Needed::Size(
-                len + cur_pos - self.bytes.len(),
+                len + cur_pos - self.size(),
             )));
         }
 
@@ -299,26 +304,49 @@ impl<'a> KStream for BytesReader<'a> {
     }
 
     fn read_bytes_full(&self) -> KResult<&[u8]> {
-        unimplemented!()
+        let cur_pos = self.state.borrow().pos;
+        self.state.borrow_mut().pos = self.size();
+        Ok(&self.bytes[cur_pos..self.size()])
+
     }
 
-    fn read_bytes_term(
-        &self,
-        term: u8,
-        include: bool,
-        consume: bool,
-        eos_error: bool,
-    ) -> KResult<&[u8]> {
-        unimplemented!()
+    fn read_bytes_term(&self, term: u8, include: bool, consume: bool, eos_error: bool)
+        -> KResult<&[u8]> {
+        let pos = self.state.borrow().pos;
+        let mut new_len = pos;
+        while new_len < self.bytes.len() && self.bytes[new_len] != term {
+            new_len += 1;
+        }
+
+        if new_len == self.bytes.len() {
+            if eos_error {
+                return Err(KError::EncounteredEOF);
+            }
+            Ok(&self.bytes[pos..])
+        } else {
+            if consume {
+                // always consume 'term' symbol
+                self.state.borrow_mut().pos = new_len+1;
+            }
+            // but return or not 'term' symbol depend on 'include' flag
+            Ok(&self.bytes[pos..new_len + include as usize])
+        }
     }
 }
 
-pub fn decode_string(raw: &[u8], encoding: &'static str) -> String {
-    match encoding {
-        "UTF-16BE" => WStr::from_utf16be(raw).unwrap().to_utf8(),
-        "UTF-16LE" => WStr::from_utf16le(raw).unwrap().to_utf8(),
-        _ => panic!("encoding: {}", encoding)
+use encoding::{Encoding, DecoderTrap};
+use encoding::label::encoding_from_whatwg_label;
+
+pub fn decode_string<'a>(
+     bytes: &'a [u8],
+     label: &'a str
+) -> KResult<String> {
+
+    if let Some(enc) = encoding_from_whatwg_label(label) {
+        return enc.decode(bytes, DecoderTrap::Replace).map_err(|e| KError::Encoding { desc: e.to_string() });
     }
+
+    Err(KError::Encoding{ desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label)})
 }
 
 macro_rules! kf_max {
@@ -368,7 +396,8 @@ mod tests {
     #[test]
     fn basic_strip_right() {
         let b = [1, 2, 3, 4, 5, 5, 5, 5];
-        let c = BytesReader::bytes_strip_right(&b, 5);
+        let reader = BytesReader::new(&b[..]);
+        let c = reader.bytes_strip_right(&b, 5);
 
         assert_eq!([1, 2, 3, 4], c);
     }
@@ -441,5 +470,20 @@ mod tests {
 
         assert_eq!(*t3.peek(), 14);
         assert_eq!(*t3.pop().peek(), *t2.peek());
+    }
+
+    #[test]
+    fn read_bytes_term() {
+        let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let reader = BytesReader::new(&b[..]);
+
+        assert_eq!(reader.read_bytes_term(3, false, false, false).unwrap(), &[1, 2]);
+        assert_eq!(reader.read_bytes_term(3, true, false, true).unwrap(), &[1, 2, 3]);
+        assert_eq!(reader.read_bytes_term(3, false, true, true).unwrap(), &[1, 2]);
+        assert_eq!(reader.read_bytes_term(5, true, true, true).unwrap(), &[4, 5]);
+        assert_eq!(reader.read_bytes_term(8, false, false, true).unwrap(), &[6, 7]);
+        assert_eq!(reader.read_bytes_term(9, false, true, true).unwrap_err(), KError::EncounteredEOF);
+        assert_eq!(reader.read_bytes_term(7, true, true, false).unwrap(), &[6, 7]);
+        assert_eq!(reader.read_bytes_term(3, true, false, false).unwrap(), &[8]);
     }
 }
