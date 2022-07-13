@@ -2,6 +2,7 @@
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use std::cell::RefCell;
+use utf16string::WStr;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
@@ -309,6 +310,14 @@ impl<'a> KStream for BytesReader<'a> {
         eos_error: bool,
     ) -> KResult<&[u8]> {
         unimplemented!()
+    }
+}
+
+pub fn decode_string(raw: &[u8], encoding: &'static str) -> String {
+    match encoding {
+        "UTF-16BE" => WStr::from_utf16be(raw).unwrap().to_utf8(),
+        "UTF-16LE" => WStr::from_utf16le(raw).unwrap().to_utf8(),
+        _ => panic!("encoding: {}", encoding)
     }
 }
 
