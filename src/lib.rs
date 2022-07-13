@@ -19,6 +19,7 @@ pub enum KError {
     ReadBitsTooLarge { requested: usize },
     UnexpectedContents { actual: Vec<u8> },
     UnknownVariant(i64),
+    EncounteredEOF,
 }
 pub type KResult<T> = Result<T, KError>;
 
@@ -94,7 +95,6 @@ pub trait KStream {
     fn seek(&self, position: u64) -> KResult<()>;
     fn pos(&self) -> usize;
     fn size(&self) -> usize;
-    fn set_limit(&self, max_len: usize) -> &Self;
 
     fn read_s1(&self) -> KResult<i8> {
         Ok(self.read_bytes(1)?[0] as i8)
@@ -209,7 +209,6 @@ pub trait KStream {
 #[derive(Default)]
 struct BytesReaderState {
     pos: usize,
-    max_pos: usize,
     bits: u64,
     bits_left: i64,
 }
@@ -239,24 +238,7 @@ impl<'a> KStream for BytesReader<'a> {
     }
 
     fn size(&self) -> usize {
-        let cur_pos = self.state.borrow().pos;
-        if self.state.borrow().max_pos > 0 {
-            self.state.borrow().max_pos
-        } else {
-            self.bytes.len()
-        }
-    }
-
-    fn set_limit(&self, max_len: usize) -> &BytesReader<'a> {
-        if max_len > 0 {
-            let new_lim = self.state.borrow().pos + max_len;
-            if new_lim < self.bytes.len() {
-                self.state.borrow_mut().max_pos = new_lim;
-            }
-        } else {
-            self.state.borrow_mut().max_pos = 0;
-        }
-        self
+        self.bytes.len()
     }
 
     fn align_to_byte(&self) -> KResult<()> {
@@ -323,14 +305,27 @@ impl<'a> KStream for BytesReader<'a> {
 
     }
 
-    fn read_bytes_term(
-        &self,
-        term: u8,
-        include: bool,
-        consume: bool,
-        eos_error: bool,
-    ) -> KResult<&[u8]> {
-        unimplemented!()
+    fn read_bytes_term(&self, term: u8, include: bool, consume: bool, eos_error: bool)
+        -> KResult<&[u8]> {
+        let pos = self.state.borrow().pos;
+        let mut new_len = pos;
+        while new_len < self.bytes.len() && self.bytes[new_len] != term {
+            new_len += 1;
+        }
+
+        if new_len == self.bytes.len() {
+            if eos_error {
+                return Err(KError::EncounteredEOF);
+            }
+            Ok(&self.bytes[pos..])
+        } else {
+            if consume {
+                // always consume 'term' symbol
+                self.state.borrow_mut().pos = new_len+1;
+            }
+            // but return or not 'term' symbol depend on 'include' flag
+            Ok(&self.bytes[pos..new_len + include as usize])
+        }
     }
 }
 
@@ -396,7 +391,8 @@ mod tests {
     #[test]
     fn basic_strip_right() {
         let b = [1, 2, 3, 4, 5, 5, 5, 5];
-        let c = BytesReader::bytes_strip_right(&b, 5);
+        let reader = BytesReader::new(&b[..]);
+        let c = reader.bytes_strip_right(&b, 5);
 
         assert_eq!([1, 2, 3, 4], c);
     }
@@ -413,23 +409,6 @@ mod tests {
             KError::Incomplete(Needed::Size(3))
         );
         assert_eq!(reader.read_bytes(1).unwrap(), &[8]);
-    }
-
-    #[test]
-    fn basic_read_bytes_limit() {
-        let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let reader = BytesReader::new(&b[..]);
-
-        assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
-        reader.set_limit(2);
-        assert_eq!(reader.read_bytes_full().unwrap(), &[5, 6]);
-        reader.set_limit(1);
-        assert_eq!(
-            reader.read_bytes(2).unwrap_err(),
-            KError::Incomplete(Needed::Size(1))
-        );
-        reader.set_limit(0);
-        assert_eq!(reader.read_bytes(2).unwrap(), &[7, 8]);
     }
 
     #[test]
@@ -486,5 +465,20 @@ mod tests {
 
         assert_eq!(*t3.peek(), 14);
         assert_eq!(*t3.pop().peek(), *t2.peek());
+    }
+
+    #[test]
+    fn read_bytes_term() {
+        let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let reader = BytesReader::new(&b[..]);
+
+        assert_eq!(reader.read_bytes_term(3, false, false, false).unwrap(), &[1, 2]);
+        assert_eq!(reader.read_bytes_term(3, true, false, true).unwrap(), &[1, 2, 3]);
+        assert_eq!(reader.read_bytes_term(3, false, true, true).unwrap(), &[1, 2]);
+        assert_eq!(reader.read_bytes_term(5, true, true, true).unwrap(), &[4, 5]);
+        assert_eq!(reader.read_bytes_term(8, false, false, true).unwrap(), &[6, 7]);
+        assert_eq!(reader.read_bytes_term(9, false, true, true).unwrap_err(), KError::EncounteredEOF);
+        assert_eq!(reader.read_bytes_term(7, true, true, false).unwrap(), &[6, 7]);
+        assert_eq!(reader.read_bytes_term(3, true, false, false).unwrap(), &[8]);
     }
 }
