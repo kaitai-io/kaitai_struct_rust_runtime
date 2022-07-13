@@ -9,7 +9,7 @@ pub enum Needed {
     Unknown,
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum KError<'a> {
+pub enum KError {
     Incomplete(Needed),
     EmptyIterator,
     Encoding { desc: String },
@@ -17,10 +17,10 @@ pub enum KError<'a> {
     MissingRoot,
     MissingParent,
     ReadBitsTooLarge { requested: usize },
-    UnexpectedContents { actual: &'a [u8] },
+    UnexpectedContents { actual: Vec<u8> },
     UnknownVariant(i64),
 }
-pub type KResult<'a, T> = Result<T, KError<'a>>;
+pub type KResult<T> = Result<T, KError>;
 
 pub trait KStruct<'r, 's: 'r>: Default {
     type Root: KStruct<'r, 's>;
@@ -32,7 +32,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: TypedStack<Self::ParentStack>,
-    ) -> KResult<'s, ()>;
+    ) -> KResult<()>;
 }
 
 /// Dummy struct used to indicate an absence of value; needed for
@@ -54,7 +54,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: TypedStack<Self::ParentStack>,
-    ) -> KResult<'s, ()> {
+    ) -> KResult<()> {
         Ok(())
     }
 }
@@ -174,7 +174,7 @@ pub trait KStream {
             // Return what the actual contents were; our caller provided us
             // what was expected so we don't need to return it, and it makes
             // the lifetimes way easier
-            Err(KError::UnexpectedContents { actual })
+            Err(KError::UnexpectedContents { actual: actual.to_vec() })
         }
     }
 
@@ -340,7 +340,7 @@ use encoding::label::encoding_from_whatwg_label;
 pub fn decode_string<'a>(
      bytes: &'a [u8],
      label: &'a str
-) -> KResult<'a, String> {
+) -> KResult<String> {
 
     if let Some(enc) = encoding_from_whatwg_label(label) {
         return enc.decode(bytes, DecoderTrap::Replace).map_err(|e| KError::Encoding { desc: e.to_string() });

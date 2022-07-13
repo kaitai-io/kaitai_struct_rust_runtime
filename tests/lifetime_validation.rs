@@ -32,7 +32,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for TestRootStruct {
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: TypedStack<Self::ParentStack>,
-    ) -> KResult<'s, ()> {
+    ) -> KResult<()> {
         self.bytes = _io.read_u1()?;
 
         let mut child = TestChildStruct::default();
@@ -52,7 +52,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for TestChildStruct {
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: TypedStack<Self::ParentStack>,
-    ) -> KResult<'s, ()> {
+    ) -> KResult<()> {
         self.bytes = _io.read_u1()?;
         _root.map(|r| self.root_bytes = r.bytes).ok_or(KError::MissingRoot)?;
         self.parent_bytes = _parent.peek().bytes;
@@ -74,7 +74,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for TestChildStruct2 {
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: TypedStack<Self::ParentStack>,
-    ) -> KResult<'s, ()> {
+    ) -> KResult<()> {
         self.bytes = _io.read_u1()?;
         _root.map(|r| self.root_bytes = r.bytes).ok_or(KError::MissingRoot)?;
         self.parent_bytes = _parent.peek().bytes;
