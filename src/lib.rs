@@ -1,12 +1,7 @@
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-<<<<<<< HEAD
-use std::cell::RefCell;
-use utf16string::WStr;
-=======
 use std::{cell::RefCell, string::FromUtf16Error};
->>>>>>> origin/master
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
