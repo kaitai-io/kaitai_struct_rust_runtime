@@ -34,6 +34,17 @@ pub trait KStruct<'r, 's: 'r>: Default {
         _root: Option<&'r Self::Root>,
         _parent: TypedStack<Self::ParentStack>,
     ) -> KResult<()>;
+
+    /// helper function to read struct
+    fn read_into<S: KStream, T: KStruct<'r, 's> + Default>(
+        _io: &'s S,
+        _root: Option<&'r T::Root>,
+        _parent: TypedStack<T::ParentStack>,
+    ) -> KResult<T> {
+        let mut t = T::default();
+        t.read(_io, _root, _parent)?;
+        Ok(t)
+    }
 }
 
 /// Dummy struct used to indicate an absence of value; needed for
