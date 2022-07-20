@@ -20,6 +20,7 @@ pub enum KError {
     UnexpectedContents { actual: Vec<u8> },
     UnknownVariant(i64),
     EncounteredEOF,
+    IoError{ desc: String },
 }
 pub type KResult<T> = Result<T, KError>;
 
@@ -32,7 +33,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
         &mut self,
         _io: &'s S,
         _root: Option<&'r Self::Root>,
-        _parent: TypedStack<Self::ParentStack>,
+        _parent: Option<TypedStack<Self::ParentStack>>,
     ) -> KResult<()>;
 }
 
@@ -54,9 +55,17 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
         &mut self,
         _io: &'s S,
         _root: Option<&'r Self::Root>,
-        _parent: TypedStack<Self::ParentStack>,
+        _parent: Option<TypedStack<Self::ParentStack>>,
     ) -> KResult<()> {
         Ok(())
+    }
+}
+
+use std::{fs, path::Path};
+
+impl From<std::io::Error> for KError {
+    fn from(err: std::io::Error) -> Self {
+        Self::IoError{ desc: err.to_string() }            
     }
 }
 
