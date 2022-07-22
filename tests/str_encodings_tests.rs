@@ -28,4 +28,10 @@ fn basic_parse() {
 
     assert_eq!(15, test.len_of_2);
     assert_eq!("\u{3053}\u{3093}\u{306b}\u{3061}\u{306f}", test.str2);
+
+    assert_eq!(10, test.len_of_3);
+    assert_eq!("\u{3053}\u{3093}\u{306b}\u{3061}\u{306f}", test.str3);
+
+    assert_eq!(3, test.len_of_4);
+    assert_eq!("\u{2591}\u{2592}\u{2593}", test.str4);
 }
