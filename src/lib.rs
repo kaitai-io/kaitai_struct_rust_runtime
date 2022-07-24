@@ -219,7 +219,34 @@ pub trait KStream {
         &bytes[..new_len]
     }
 
-    // TODO: `process_*` directives
+    fn process_xor_one(bytes: &[u8], key: u8) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        for i in res.iter_mut() {
+            *i = *i ^ key;
+        }
+        return res;
+    }
+
+    fn process_xor_many(bytes: &[u8], key: &[u8]) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        let mut ki = 0;
+        for i in res.iter_mut() {
+            *i = *i ^ key[ki];
+            ki = ki + 1;
+            if (ki >= key.len()) {
+                ki = 0;
+            }
+        }
+        return res;
+    }
+
+    fn process_rotate_left(bytes: &[u8], amount: u8) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        for i in res.iter_mut() {
+            *i = (*i << amount) | (*i >> (8 - amount));
+        }
+        return res;
+    }
 }
 
 #[derive(Default)]
@@ -495,4 +522,40 @@ mod tests {
         assert_eq!(reader.read_bytes_term(9, true, true, false).unwrap(), &[8, 9]);
         assert_eq!(reader.read_bytes_term(10, true, false, false).unwrap(), &[10]);
     }
+
+    #[test]
+    fn process_xor_one() {
+        let b = vec![0x66];
+        let mut reader = BytesReader::new(&b[..]);
+        fn as_stream_trait<S: KStream>(_io: &S) {
+            let res = S::process_xor_one(_io.read_bytes(1).unwrap(), 3);
+            assert_eq!(0x65, res[0]);
+        }
+        as_stream_trait(&mut reader);
+    }
+
+    #[test]
+    fn process_xor_many() {
+        let b = vec![0x66, 0x6F];
+        let mut reader = BytesReader::new(&b[..]);
+        fn as_stream_trait<S: KStream>(_io: &S) {
+            let key : Vec<u8> = vec![3, 3];
+            let res = S::process_xor_many(_io.read_bytes(2).unwrap(), &key);
+            assert_eq!(vec![0x65, 0x6C], res);
+        }
+        as_stream_trait(&mut reader);
+    }
+
+    #[test]
+    fn process_rotate_left() {
+        let b = vec![0x09, 0xAC];
+        let mut reader = BytesReader::new(&b[..]);
+        fn as_stream_trait<S: KStream>(_io: &S) {
+            let res = S::process_rotate_left(_io.read_bytes(2).unwrap(), 3);
+            let expected : Vec<u8> = vec![0x48, 0x65];
+            assert_eq!(expected, res);
+        }
+        as_stream_trait(&mut reader);
+    }
+
 }
