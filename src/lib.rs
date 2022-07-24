@@ -71,7 +71,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct TypedStack<C> {
     current: C,
 }
@@ -79,6 +79,11 @@ impl<C> TypedStack<C>
 where
     C: Clone,
 {
+    fn clone(&self) -> Self {
+        TypedStack {
+            current: self.current.clone(),
+        }
+    }
     pub fn push<N>(&self, next: N) -> TypedStack<(N, C)> {
         TypedStack {
             current: (next, self.current.clone()),
