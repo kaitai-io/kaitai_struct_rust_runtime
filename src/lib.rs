@@ -33,14 +33,14 @@ pub trait KStruct<'r, 's: 'r>: Default {
         &mut self,
         _io: &'s S,
         _root: Option<&'r Self::Root>,
-        _parent: Option<TypedStack<Self::ParentStack>>,
+        _parent: TypedStack<Self::ParentStack>,
     ) -> KResult<()>;
 
     /// helper function to read struct
     fn read_into<S: KStream, T: KStruct<'r, 's> + Default>(
         _io: &'s S,
         _root: Option<&'r T::Root>,
-        _parent: Option<TypedStack<T::ParentStack>>,
+        _parent: TypedStack<T::ParentStack>,
     ) -> KResult<T> {
         let mut t = T::default();
         t.read(_io, _root, _parent)?;
@@ -66,7 +66,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
         &mut self,
         _io: &'s S,
         _root: Option<&'r Self::Root>,
-        _parent: Option<TypedStack<Self::ParentStack>>,
+        _parent: TypedStack<Self::ParentStack>,
     ) -> KResult<()> {
         Ok(())
     }
@@ -88,6 +88,11 @@ impl<C> TypedStack<C>
 where
     C: Clone,
 {
+    fn clone(&self) -> Self {
+        TypedStack {
+            current: self.current.clone(),
+        }
+    }
     pub fn push<N>(&self, next: N) -> TypedStack<(N, C)> {
         TypedStack {
             current: (next, self.current.clone()),
@@ -339,10 +344,8 @@ impl<'a> KStream for BytesReader<'a> {
             }
             Ok(&self.bytes[pos..])
         } else {
-            if consume {
-                // always consume 'term' symbol
-                self.state.borrow_mut().pos = new_len+1;
-            }
+            // consume terminator?
+            self.state.borrow_mut().pos = new_len + consume as usize;
             // but return or not 'term' symbol depend on 'include' flag
             Ok(&self.bytes[pos..new_len + include as usize])
         }
@@ -489,16 +492,16 @@ mod tests {
 
     #[test]
     fn read_bytes_term() {
-        let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let b = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let reader = BytesReader::new(&b[..]);
 
         assert_eq!(reader.read_bytes_term(3, false, false, false).unwrap(), &[1, 2]);
-        assert_eq!(reader.read_bytes_term(3, true, false, true).unwrap(), &[1, 2, 3]);
-        assert_eq!(reader.read_bytes_term(3, false, true, true).unwrap(), &[1, 2]);
+        assert_eq!(reader.read_bytes_term(3, true, false, true).unwrap(), &[3]);
+        assert_eq!(reader.read_bytes_term(3, false, true, true).unwrap(), &[]);
         assert_eq!(reader.read_bytes_term(5, true, true, true).unwrap(), &[4, 5]);
         assert_eq!(reader.read_bytes_term(8, false, false, true).unwrap(), &[6, 7]);
-        assert_eq!(reader.read_bytes_term(9, false, true, true).unwrap_err(), KError::EncounteredEOF);
-        assert_eq!(reader.read_bytes_term(7, true, true, false).unwrap(), &[6, 7]);
-        assert_eq!(reader.read_bytes_term(3, true, false, false).unwrap(), &[8]);
+        assert_eq!(reader.read_bytes_term(11, false, true, true).unwrap_err(), KError::EncounteredEOF);
+        assert_eq!(reader.read_bytes_term(9, true, true, false).unwrap(), &[8, 9]);
+        assert_eq!(reader.read_bytes_term(10, true, false, false).unwrap(), &[10]);
     }
 }
