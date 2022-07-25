@@ -18,6 +18,7 @@ pub enum KError {
     MissingParent,
     ReadBitsTooLarge { requested: usize },
     UnexpectedContents { actual: Vec<u8> },
+    ValidationNotEqual(String),
     UnknownVariant(i64),
     EncounteredEOF,
 }
@@ -108,7 +109,7 @@ where
 
 pub trait KStream {
     fn is_eof(&self) -> bool;
-    fn seek(&self, position: u64) -> KResult<()>;
+    fn seek(&self, position: usize) -> KResult<()>;
     fn pos(&self) -> usize;
     fn size(&self) -> usize;
 
@@ -272,8 +273,12 @@ impl<'a> KStream for BytesReader<'a> {
         self.pos() == self.size()
     }
 
-    fn seek(&self, position: u64) -> KResult<()> {
-        unimplemented!()
+    fn seek(&self, position: usize) -> KResult<()> {
+        if position >= self.bytes.len() {
+            return Err(KError::Incomplete(Needed::Size(position - self.pos())));
+        }
+        self.state.borrow_mut().pos = position;
+        Ok(())
     }
 
     fn pos(&self) -> usize {
@@ -526,36 +531,50 @@ mod tests {
     #[test]
     fn process_xor_one() {
         let b = vec![0x66];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
         fn as_stream_trait<S: KStream>(_io: &S) {
             let res = S::process_xor_one(_io.read_bytes(1).unwrap(), 3);
             assert_eq!(0x65, res[0]);
         }
-        as_stream_trait(&mut reader);
+        as_stream_trait(&reader);
     }
 
     #[test]
     fn process_xor_many() {
         let b = vec![0x66, 0x6F];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
         fn as_stream_trait<S: KStream>(_io: &S) {
             let key : Vec<u8> = vec![3, 3];
             let res = S::process_xor_many(_io.read_bytes(2).unwrap(), &key);
             assert_eq!(vec![0x65, 0x6C], res);
         }
-        as_stream_trait(&mut reader);
+        as_stream_trait(&reader);
     }
 
     #[test]
     fn process_rotate_left() {
         let b = vec![0x09, 0xAC];
-        let mut reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::new(&b[..]);
         fn as_stream_trait<S: KStream>(_io: &S) {
             let res = S::process_rotate_left(_io.read_bytes(2).unwrap(), 3);
             let expected : Vec<u8> = vec![0x48, 0x65];
             assert_eq!(expected, res);
         }
-        as_stream_trait(&mut reader);
+        as_stream_trait(&reader);
     }
 
+    #[test]
+    fn basic_seek() {
+        let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let reader = BytesReader::new(&b[..]);
+
+        assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
+        let pos = reader.pos();
+        reader.seek(1).unwrap();
+        assert_eq!(reader.read_bytes(4).unwrap(), &[2, 3, 4, 5]);
+        reader.seek(pos).unwrap();
+        assert_eq!(reader.read_bytes(4).unwrap(), &[5, 6, 7, 8]);
+        assert_eq!(reader.seek(9).unwrap_err(),
+            KError::Incomplete(Needed::Size(1)));
+    }
 }
