@@ -14,11 +14,11 @@ use switch_cast_parent::*;
 #[test]
 fn basic_parse() {
     let bytes = get_file_as_byte_vec("formats/bin/switch_opcodes.bin");
-    let mut reader = BytesReader::new(&bytes);
+    let reader = BytesReader::new(&bytes);
 
     let mut test = SwitchCastParent::default();
     {
-        let res = test.read(&mut reader, None, KStructUnit::parent_stack());
+        let res = test.read(&reader, None, KStructUnit::parent_stack());
         println!("{:?}", res);
         assert!(res.is_ok());
     }

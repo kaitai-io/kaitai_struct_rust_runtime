@@ -14,11 +14,11 @@ use str_encodings_utf16::*;
 #[test]
 fn basic_parse() {
     let bytes = get_file_as_byte_vec("formats/bin/str_encodings_utf16.bin");
-    let mut reader = BytesReader::new(&bytes);
+    let reader = BytesReader::new(&bytes);
 
     let mut test = StrEncodingsUtf16::default();
     {
-        let res = test.read(&mut reader, None, KStructUnit::parent_stack());
+        let res = test.read(&reader, None, KStructUnit::parent_stack());
         println!("{:?}", res);
         assert!(res.is_ok());
     }

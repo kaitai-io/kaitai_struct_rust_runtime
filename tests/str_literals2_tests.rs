@@ -14,24 +14,24 @@ use str_literals2::*;
 #[test]
 fn basic_parse() {
     let bytes = get_file_as_byte_vec("formats/bin/fixed_struct.bin");
-    let mut reader = BytesReader::new(&bytes);
+    let reader = BytesReader::new(&bytes);
 
     let mut test = StrLiterals2::default();
     {
-        let res = test.read(&mut reader, None, KStructUnit::parent_stack());
+        let res = test.read(&reader, None, KStructUnit::parent_stack());
         println!("{:?}", res);
         assert!(res.is_ok());
     }
 
-    let dollar1 = test.dollar1(&mut reader, None, KStructUnit::parent_stack()).unwrap();
+    let dollar1 = test.dollar1(&reader).unwrap();
     assert_eq!("$foo", *dollar1);
     
-    let dollar2 = test.dollar2(&mut reader, None, KStructUnit::parent_stack()).unwrap();
+    let dollar2 = test.dollar2(&reader).unwrap();
     assert_eq!("${foo}", *dollar2);
 
-    let hash = test.hash(&mut reader, None, KStructUnit::parent_stack()).unwrap();
+    let hash = test.hash(&reader).unwrap();
     assert_eq!("#{foo}", *hash);
 
-    let at_sign = test.at_sign(&mut reader, None, KStructUnit::parent_stack()).unwrap();
+    let at_sign = test.at_sign(&reader).unwrap();
     assert_eq!("@foo", *at_sign);
 }
