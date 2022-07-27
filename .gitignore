@@ -3,5 +3,3 @@
 /target
 **/*.rs.bk
 Cargo.lock
-tests/*.rs
-!tests/*_tests.rs
