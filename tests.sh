@@ -5,7 +5,7 @@ CWD=`pwd`
 CSD=`dirname -- "$0"`
 CSDF="$CWD/$CSD"
 
-pushd $CSD/../kaitai_struct_compiler/jvm/target/universal
+pushd $CSD/../../compiler/jvm/target/universal
 # refresh build
 unzip -q -o ./kaitai-struct-compiler-0.10-SNAPSHOT.zip
 
