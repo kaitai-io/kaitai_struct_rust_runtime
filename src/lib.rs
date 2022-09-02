@@ -391,8 +391,8 @@ pub fn decode_string<'a>(
     Err(KError::Encoding{ desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label)})
 }
 
-pub fn reverse_string(s: String) -> KResult<String> {
-    Ok(s.graphemes(true).rev().collect())
+pub fn reverse_string<S: AsRef<str>>(s: S) -> KResult<String> {
+    Ok(s.as_ref().to_string().graphemes(true).rev().collect())
 }
 
 pub fn modulo(a: i64, b: i64) -> i64 {
