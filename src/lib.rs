@@ -22,6 +22,7 @@ pub enum KError {
     ValidationNotEqual(String),
     UnknownVariant(i64),
     EncounteredEOF,
+    CastError,
 }
 pub type KResult<T> = Result<T, KError>;
 
