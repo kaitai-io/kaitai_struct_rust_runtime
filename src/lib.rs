@@ -23,6 +23,7 @@ pub enum KError {
     ValidationNotEqual(String),
     UnknownVariant(i64),
     EncounteredEOF,
+    CastError,
 }
 pub type KResult<T> = Result<T, KError>;
 
@@ -390,6 +391,18 @@ pub fn decode_string<'a>(
     }
 
     Err(KError::Encoding{ desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label)})
+}
+
+pub fn reverse_string<S: AsRef<str>>(s: S) -> KResult<String> {
+    Ok(s.as_ref().to_string().graphemes(true).rev().collect())
+}
+
+pub fn modulo(a: i64, b: i64) -> i64 {
+    let mut r = a % b;
+    if r < 0 {
+        r += b;
+    }
+    r
 }
 
 macro_rules! kf_max {
