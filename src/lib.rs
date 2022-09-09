@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
+use unicode_segmentation::UnicodeSegmentation;
 use std::{rc::Rc, cell::RefCell, string::FromUtf16Error};
 
 pub type ParamType<T> = RefCell<Option<Rc<T>>>;
