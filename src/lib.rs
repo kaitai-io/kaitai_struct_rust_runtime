@@ -1,7 +1,9 @@
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use std::{cell::RefCell, string::FromUtf16Error};
+use std::{rc::Rc, cell::RefCell, string::FromUtf16Error};
+
+pub type ParamType<T> = RefCell<Option<Rc<T>>>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
@@ -274,7 +276,7 @@ impl<'a> KStream for BytesReader<'a> {
     }
 
     fn seek(&self, position: usize) -> KResult<()> {
-        if position >= self.bytes.len() {
+        if position > self.bytes.len() {
             return Err(KError::Incomplete(Needed::Size(position - self.pos())));
         }
         self.state.borrow_mut().pos = position;
