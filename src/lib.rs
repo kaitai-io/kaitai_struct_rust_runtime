@@ -3,6 +3,8 @@
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use unicode_segmentation::UnicodeSegmentation;
 use std::{rc::Rc, cell::RefCell, string::FromUtf16Error};
+use std::io::Read;
+use flate2::read::ZlibDecoder;
 
 pub type ParamType<T> = RefCell<Option<Rc<T>>>;
 
@@ -251,6 +253,13 @@ pub trait KStream {
             *i = (*i << amount) | (*i >> (8 - amount));
         }
         return res;
+    }
+
+    fn process_zlib(bytes: &[u8]) -> Vec<u8> {
+        let mut dec = ZlibDecoder::new(bytes);
+        let mut dec_bytes = Vec::new();
+        dec.read_to_end(&mut dec_bytes);
+        dec_bytes
     }
 }
 
