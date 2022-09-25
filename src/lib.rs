@@ -3,6 +3,8 @@
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use std::{cell::RefCell, string::FromUtf16Error};
 
+pub type ParamType<T> = RefCell<Option<Box<T>>>;
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
     Size(usize),
