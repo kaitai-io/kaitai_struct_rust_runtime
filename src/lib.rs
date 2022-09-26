@@ -1,7 +1,10 @@
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use std::{cell::RefCell, string::FromUtf16Error};
+use unicode_segmentation::UnicodeSegmentation;
+use std::{rc::Rc, cell::RefCell, string::FromUtf16Error};
+use std::io::Read;
+use flate2::read::ZlibDecoder;
 
 pub type ParamType<T> = RefCell<Option<Box<T>>>;
 
@@ -20,9 +23,11 @@ pub enum KError {
     MissingParent,
     ReadBitsTooLarge { requested: usize },
     UnexpectedContents { actual: Vec<u8> },
+    ValidationNotEqual(String),
     UnknownVariant(i64),
     EncounteredEOF,
     IoError{ desc: String },
+    CastError,
 }
 pub type KResult<T> = Result<T, KError>;
 
@@ -35,14 +40,14 @@ pub trait KStruct<'r, 's: 'r>: Default {
         &mut self,
         _io: &'s S,
         _root: Option<&'r Self::Root>,
-        _parent: TypedStack<Self::ParentStack>,
+        _parent: Option<TypedStack<Self::ParentStack>>,
     ) -> KResult<()>;
 
     /// helper function to read struct
     fn read_into<S: KStream, T: KStruct<'r, 's> + Default>(
         _io: &'s S,
         _root: Option<&'r T::Root>,
-        _parent: TypedStack<T::ParentStack>,
+        _parent: Option<TypedStack<T::ParentStack>>,
     ) -> KResult<T> {
         let mut t = T::default();
         t.read(_io, _root, _parent)?;
@@ -68,7 +73,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
         &mut self,
         _io: &'s S,
         _root: Option<&'r Self::Root>,
-        _parent: TypedStack<Self::ParentStack>,
+        _parent: Option<TypedStack<Self::ParentStack>>,
     ) -> KResult<()> {
         Ok(())
     }
@@ -81,8 +86,7 @@ impl From<std::io::Error> for KError {
         Self::IoError{ desc: err.to_string() }            
     }
 }
-
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct TypedStack<C> {
     current: C,
 }
@@ -119,7 +123,7 @@ where
 
 pub trait KStream {
     fn is_eof(&self) -> bool;
-    fn seek(&self, position: u64) -> KResult<()>;
+    fn seek(&self, position: usize) -> KResult<()>;
     fn pos(&self) -> usize;
     fn size(&self) -> usize;
 
@@ -230,7 +234,41 @@ pub trait KStream {
         &bytes[..new_len]
     }
 
-    // TODO: `process_*` directives
+    fn process_xor_one(bytes: &[u8], key: u8) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        for i in res.iter_mut() {
+            *i = *i ^ key;
+        }
+        return res;
+    }
+
+    fn process_xor_many(bytes: &[u8], key: &[u8]) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        let mut ki = 0;
+        for i in res.iter_mut() {
+            *i = *i ^ key[ki];
+            ki = ki + 1;
+            if (ki >= key.len()) {
+                ki = 0;
+            }
+        }
+        return res;
+    }
+
+    fn process_rotate_left(bytes: &[u8], amount: u8) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        for i in res.iter_mut() {
+            *i = (*i << amount) | (*i >> (8 - amount));
+        }
+        return res;
+    }
+
+    fn process_zlib(bytes: &[u8]) -> Vec<u8> {
+        let mut dec = ZlibDecoder::new(bytes);
+        let mut dec_bytes = Vec::new();
+        dec.read_to_end(&mut dec_bytes);
+        dec_bytes
+    }
 }
 
 #[derive(Default)]
@@ -256,8 +294,12 @@ impl<'a> KStream for BytesReader<'a> {
         self.pos() == self.size()
     }
 
-    fn seek(&self, position: u64) -> KResult<()> {
-        unimplemented!()
+    fn seek(&self, position: usize) -> KResult<()> {
+        if position > self.bytes.len() {
+            return Err(KError::Incomplete(Needed::Size(position - self.pos())));
+        }
+        self.state.borrow_mut().pos = position;
+        Ok(())
     }
 
     fn pos(&self) -> usize {
@@ -367,6 +409,18 @@ pub fn decode_string<'a>(
     }
 
     Err(KError::Encoding{ desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label)})
+}
+
+pub fn reverse_string<S: AsRef<str>>(s: S) -> KResult<String> {
+    Ok(s.as_ref().to_string().graphemes(true).rev().collect())
+}
+
+pub fn modulo(a: i64, b: i64) -> i64 {
+    let mut r = a % b;
+    if r < 0 {
+        r += b;
+    }
+    r
 }
 
 macro_rules! kf_max {
@@ -505,5 +559,55 @@ mod tests {
         assert_eq!(reader.read_bytes_term(11, false, true, true).unwrap_err(), KError::EncounteredEOF);
         assert_eq!(reader.read_bytes_term(9, true, true, false).unwrap(), &[8, 9]);
         assert_eq!(reader.read_bytes_term(10, true, false, false).unwrap(), &[10]);
+    }
+
+    #[test]
+    fn process_xor_one() {
+        let b = vec![0x66];
+        let reader = BytesReader::new(&b[..]);
+        fn as_stream_trait<S: KStream>(_io: &S) {
+            let res = S::process_xor_one(_io.read_bytes(1).unwrap(), 3);
+            assert_eq!(0x65, res[0]);
+        }
+        as_stream_trait(&reader);
+    }
+
+    #[test]
+    fn process_xor_many() {
+        let b = vec![0x66, 0x6F];
+        let reader = BytesReader::new(&b[..]);
+        fn as_stream_trait<S: KStream>(_io: &S) {
+            let key : Vec<u8> = vec![3, 3];
+            let res = S::process_xor_many(_io.read_bytes(2).unwrap(), &key);
+            assert_eq!(vec![0x65, 0x6C], res);
+        }
+        as_stream_trait(&reader);
+    }
+
+    #[test]
+    fn process_rotate_left() {
+        let b = vec![0x09, 0xAC];
+        let reader = BytesReader::new(&b[..]);
+        fn as_stream_trait<S: KStream>(_io: &S) {
+            let res = S::process_rotate_left(_io.read_bytes(2).unwrap(), 3);
+            let expected : Vec<u8> = vec![0x48, 0x65];
+            assert_eq!(expected, res);
+        }
+        as_stream_trait(&reader);
+    }
+
+    #[test]
+    fn basic_seek() {
+        let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let reader = BytesReader::new(&b[..]);
+
+        assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
+        let pos = reader.pos();
+        reader.seek(1).unwrap();
+        assert_eq!(reader.read_bytes(4).unwrap(), &[2, 3, 4, 5]);
+        reader.seek(pos).unwrap();
+        assert_eq!(reader.read_bytes(4).unwrap(), &[5, 6, 7, 8]);
+        assert_eq!(reader.seek(9).unwrap_err(),
+            KError::Incomplete(Needed::Size(1)));
     }
 }
