@@ -177,7 +177,8 @@ pub trait KStream {
     }
 
     fn align_to_byte(&self) -> KResult<()>;
-    fn read_bits_int(&self, n: usize) -> KResult<u64>;
+    fn read_bits_int_be(&self, n: usize) -> KResult<u64>;
+    fn read_bits_int_le(&self, n: usize) -> KResult<u64>;
 
     fn read_bytes(&self, len: usize) -> KResult<&[u8]>;
     fn read_bytes_full(&self) -> KResult<&[u8]>;
@@ -283,6 +284,9 @@ impl<'a> BytesReader<'a> {
 }
 impl<'a> KStream for BytesReader<'a> {
     fn is_eof(&self) -> bool {
+        if self.state.borrow().bits_left > 0 {
+            return false;
+        }
         self.pos() == self.size()
     }
 
@@ -310,41 +314,82 @@ impl<'a> KStream for BytesReader<'a> {
         Ok(())
     }
 
-    fn read_bits_int(&self, n: usize) -> KResult<u64> {
+    fn read_bits_int_be(&self, n: usize) -> KResult<u64> {
+        let mut res : u64 = 0;
+
         if n > 64 {
             return Err(KError::ReadBitsTooLarge { requested: n });
         }
 
         let n = n as i64;
         let bits_needed = n - self.state.borrow().bits_left;
+        self.state.borrow_mut().bits_left = -bits_needed & 7;
+
         if bits_needed > 0 {
-            // 1 bit => 1 byte
-            // 8 bits => 1 byte
-            // 9 bits => 2 bytes
             let bytes_needed = ((bits_needed - 1) / 8) + 1;
-            // Need to be careful here, because `read_bytes` will borrow our state as mutable,
-            // which panics if we're currently holding a borrow
             let buf = self.read_bytes(bytes_needed as usize)?;
-            let mut inner = self.state.borrow_mut();
             for b in buf {
-                inner.bits <<= 8;
-                inner.bits |= *b as u64;
-                inner.bits_left += 8;
+                res = res << 8 | (*b as u64);
             }
+            let mut inner = self.state.borrow_mut();
+            let new_bits = res;
+            res >>= inner.bits_left;
+            if bits_needed < 64 {
+                res |= inner.bits << bits_needed;
+            }
+            inner.bits = new_bits;
+        } else {
+            res = self.state.borrow().bits >> -bits_needed;
         }
 
         let mut inner = self.state.borrow_mut();
-        let mut mask = (1u64 << n) - 1;
-        let shift_bits = inner.bits_left - n;
-        mask <<= shift_bits;
-
-        let result: u64 = (inner.bits & mask) >> shift_bits;
-
-        inner.bits_left -= n;
-        mask = (1u64 << inner.bits_left) - 1;
+        let mut mask = (1u64 << inner.bits_left) - 1;
         inner.bits &= mask;
 
-        Ok(result)
+        Ok(res)
+    }
+
+    fn read_bits_int_le(&self, n: usize) -> KResult<u64> {
+        let mut res : u64 = 0;
+
+        if n > 64 {
+            return Err(KError::ReadBitsTooLarge { requested: n });
+        }
+
+        let n = n as i64;
+        let bits_needed = n - self.state.borrow().bits_left;
+
+        if bits_needed > 0 {
+            let bytes_needed = ((bits_needed - 1) / 8) + 1;
+            let buf = self.read_bytes(bytes_needed as usize)?;
+            for i in 0..bytes_needed {
+                res |= (buf[i as usize] as u64) << (i * 8);
+            }
+            let mut inner = self.state.borrow_mut();
+            let new_bits;
+            if bits_needed < 64 {
+                new_bits = res >> bits_needed;
+            } else {
+                new_bits = 0;
+            }
+            res = res << inner.bits_left | inner.bits;
+            inner.bits = new_bits;
+        } else {
+            let mut inner = self.state.borrow_mut();
+            res = inner.bits;
+            inner.bits >>= n;
+
+        }
+
+        let mut inner = self.state.borrow_mut();
+        inner.bits_left = -bits_needed & 7;
+
+        if n < 64 {
+            let mut mask = (1u64 << n) - 1;
+            res &= mask;
+        }
+
+        Ok(res)
     }
 
     fn read_bytes(&self, len: usize) -> KResult<&[u8]> {
@@ -487,7 +532,7 @@ mod tests {
         let b = vec![0x80];
         let reader = BytesReader::new(&b[..]);
 
-        assert_eq!(reader.read_bits_int(1).unwrap(), 1);
+        assert_eq!(reader.read_bits_int_be(1).unwrap(), 1);
     }
 
     #[test]
@@ -496,9 +541,9 @@ mod tests {
         let b = vec![0b10100000];
         let reader = BytesReader::new(&b[..]);
 
-        assert_eq!(reader.read_bits_int(1).unwrap(), 1);
-        assert_eq!(reader.read_bits_int(1).unwrap(), 0);
-        assert_eq!(reader.read_bits_int(1).unwrap(), 1);
+        assert_eq!(reader.read_bits_int_be(1).unwrap(), 1);
+        assert_eq!(reader.read_bits_int_be(1).unwrap(), 0);
+        assert_eq!(reader.read_bits_int_be(1).unwrap(), 1);
     }
 
     #[test]
@@ -506,7 +551,7 @@ mod tests {
         let b = vec![0b10100000];
         let reader = BytesReader::new(&b[..]);
 
-        assert_eq!(reader.read_bits_int(3).unwrap(), 5);
+        assert_eq!(reader.read_bits_int_be(3).unwrap(), 5);
     }
 
     #[test]
@@ -514,7 +559,7 @@ mod tests {
         let b = vec![0x01, 0x80];
         let reader = BytesReader::new(&b[..]);
 
-        assert_eq!(reader.read_bits_int(9).unwrap(), 3);
+        assert_eq!(reader.read_bits_int_be(9).unwrap(), 3);
     }
 
     #[test]
@@ -523,7 +568,7 @@ mod tests {
         let reader = BytesReader::new(&b[..]);
 
         assert_eq!(
-            reader.read_bits_int(65).unwrap_err(),
+            reader.read_bits_int_be(65).unwrap_err(),
             KError::ReadBitsTooLarge { requested: 65 }
         )
     }
