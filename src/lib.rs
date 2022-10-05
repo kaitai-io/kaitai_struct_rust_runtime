@@ -27,6 +27,7 @@ pub enum KError {
     UnknownVariant(i64),
     EncounteredEOF,
     CastError,
+    UndecidedEndiannessError(String),
 }
 pub type KResult<T> = Result<T, KError>;
 
