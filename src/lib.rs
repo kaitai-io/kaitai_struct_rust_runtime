@@ -6,36 +6,9 @@ use std::{rc::Rc, cell::RefCell, string::FromUtf16Error};
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
 use flate2::read::ZlibDecoder;
+use once_cell::unsync::OnceCell;
 
-#[derive(Default, Debug, PartialEq, Clone)]
-pub struct ParamType<T>(Option<Box<T>>);
-
-impl<T> ParamType<T> {
-    fn new(t: T) -> ParamType<T> {
-        ParamType::<T>(
-            Some(Box::new(t))
-        )
-    }
-}
-
-impl<T> Deref for ParamType<T> {
-    type Target = T;
-    fn deref<'a>(&'a self) -> &'a Self::Target {
-        self.0.as_ref().unwrap().deref()
-    }
-}
-
-impl<T: Default> DerefMut for ParamType<T> {
-    fn deref_mut<'a>(&'a mut self) -> &'a mut Self::Target {
-        if self.0.is_none() {
-            let x = Box::new(T::default());
-            self.0 = Some(x);
-        }
-
-        self.0.as_deref_mut().unwrap()
-    }
-}
-
+pub mod pt;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
@@ -66,7 +39,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
 
     /// Parse this struct (and any children) from the supplied stream
     fn read<S: KStream>(
-        &mut self,
+        &self,
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: Option<TypedStack<Self::ParentStack>>,
@@ -99,7 +72,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
     type ParentStack = KStructUnit;
 
     fn read<S: KStream>(
-        &mut self,
+        &self,
         _io: &'s S,
         _root: Option<&'r Self::Root>,
         _parent: Option<TypedStack<Self::ParentStack>>,
