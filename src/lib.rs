@@ -31,6 +31,10 @@ pub enum KError {
 }
 pub type KResult<T> = Result<T, KError>;
 
+pub trait CustomDecoder {
+    fn decode(&self, bytes: &[u8]) -> Vec<u8>;
+}
+
 pub trait KStruct<'r, 's: 'r>: Default {
     type Root: KStruct<'r, 's>;
     type ParentStack;
