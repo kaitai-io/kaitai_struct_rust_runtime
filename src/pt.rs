@@ -40,7 +40,7 @@ impl<'a, T: Default> DerefMut for RefMut<'a, T> {
 pub struct ParamType<T: Default>(UnsafeCell<Option<T>>);
 
 impl<T: Default> ParamType<T> {
-    fn new(t: T) -> Self {
+    pub fn new(t: T) -> Self {
         Self(
             UnsafeCell::new(Some(t))
         )
@@ -85,5 +85,41 @@ impl<T: Default> PartialEq for  ParamType<T> {
 impl<T: Default + Clone> Clone for  ParamType<T> {
     fn clone(&self) -> Self {
         ParamType::<T>::new(unsafe { (self.0.get()).as_ref() }.unwrap().clone().expect("no value"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::BorrowMut;
+
+    use super::*;
+
+    #[derive(Default, Debug, PartialEq, Clone)]
+    struct SomeParam;
+
+    #[derive(Default)]
+    struct SomeData {
+        some_param: ParamType<SomeParam>,
+    }
+
+    impl SomeData {
+        fn set_param(&self, param: &SomeParam) {
+            // let x = param.as_ref();
+            // let x = x.unwrap();
+            // let x = x.clone();
+            // *self.some_param.borrow_mut() = Some(x.clone())
+            *self.some_param.borrow_mut() = Some(param.clone())
+        }
+    }
+
+    #[test]
+    fn set_param() {
+        let param = SomeParam{};
+        let data = SomeData::default();
+
+        assert_eq!(data.some_param.is_none(), true);
+        data.set_param(&param);
+        assert_eq!(data.some_param.is_some(), true);
+        assert_eq!(data.some_param.as_ref().unwrap(), &param);
     }
 }
