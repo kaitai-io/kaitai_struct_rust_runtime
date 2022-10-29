@@ -104,11 +104,10 @@ mod tests {
 
     impl SomeData {
         fn set_param(&self, param: &SomeParam) {
-            // let x = param.as_ref();
-            // let x = x.unwrap();
-            // let x = x.clone();
-            // *self.some_param.borrow_mut() = Some(x.clone())
             *self.some_param.borrow_mut() = Some(param.clone())
+        }
+        pub fn get_param(&self) -> Ref<SomeParam> {
+            self.some_param.borrow()
         }
     }
 
@@ -121,5 +120,14 @@ mod tests {
         data.set_param(&param);
         assert_eq!(data.some_param.is_some(), true);
         assert_eq!(data.some_param.as_ref().unwrap(), &param);
+    }
+
+    #[test]
+    fn get_param() {
+        let param = SomeParam{};
+        let data = SomeData::default();
+
+        data.set_param(&param);
+        assert_eq!(data.get_param().clone().as_ref().unwrap(), &param);
     }
 }
