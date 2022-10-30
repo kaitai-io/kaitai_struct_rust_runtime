@@ -84,7 +84,9 @@ impl<T: Default> PartialEq for  ParamType<T> {
 
 impl<T: Default + Clone> Clone for  ParamType<T> {
     fn clone(&self) -> Self {
-        ParamType::<T>::new(unsafe { (self.0.get()).as_ref() }.unwrap().clone().expect("no value"))
+        Self(
+            UnsafeCell::new(unsafe { (self.0.get()).as_ref() }.unwrap().clone())
+        )
     }
 }
 
@@ -130,4 +132,55 @@ mod tests {
         data.set_param(&param);
         assert_eq!(data.get_param().clone().as_ref().unwrap(), &param);
     }
+
+    #[derive(Default, Debug, PartialEq, Clone)]
+    struct SomeData1 {
+        some_data2: ParamType<Box<SomeData2>>,
+        value:      u32,
+    }
+
+    impl SomeData1 {
+        fn set_param(&self, param: &SomeData2) {
+            *self.some_data2.borrow_mut() = Some(Box::new(param.clone()))
+        }
+        pub fn get_param(&self) -> Ref<Box<SomeData2>> {
+            self.some_data2.borrow()
+        }        
+    }
+
+    #[derive(Default, Debug, PartialEq, Clone)]
+    struct SomeData2 {
+        some_data1: ParamType<Box<SomeData1>>,
+        value:      u32,
+    }
+
+    impl SomeData2 {
+        fn set_param(&self, param: &SomeData1) {
+            *self.some_data1.borrow_mut() = Some(Box::new(param.clone()))
+        }
+        pub fn get_param(&self) -> Ref<Box<SomeData1>> {
+            self.some_data1.borrow()
+        }        
+    }
+    
+    #[test]
+    fn cross_ref() {
+        let mut some_data1 = SomeData1::default();
+        let mut some_data2 = SomeData2::default();
+
+        assert!(some_data1.some_data2.is_none());
+        assert!(some_data2.some_data1.is_none());
+
+        some_data2.value = 2;
+        some_data1.set_param(&some_data2);
+        assert!(some_data1.some_data2.is_some());
+
+        some_data1.value = 1;
+        some_data2.set_param(&some_data1);
+        assert!(some_data2.some_data1.is_some());
+
+        assert_eq!((*some_data1.get_param()).as_deref().unwrap().value, some_data2.value);
+        assert_eq!((*some_data2.get_param()).as_deref().unwrap().value, some_data1.value);
+    }
+
 }
