@@ -460,6 +460,16 @@ pub fn decode_string<'a>(
         return enc.decode(bytes, DecoderTrap::Replace).map_err(|e| KError::Encoding { desc: e.to_string() });
     }
 
+    let enc = label.to_lowercase();
+    if enc == "cp437"
+    {
+        use std::io::BufReader;
+        let reader = BufReader::new(bytes);
+        let mut buffer = reader.bytes();
+        let mut r = cp437::Reader::new(&mut buffer);
+        return Ok(r.consume(bytes.len()));
+    }
+
     Err(KError::Encoding{ desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label)})
 }
 
