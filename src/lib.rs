@@ -46,14 +46,14 @@ pub trait KStruct<'r, 's: 'r>: Default {
     fn read<S: KStream>(
         &self,
         _io: &'s S,
-        _root: Option<&'r Self::Root>,
+        _root: Rc<Self::Root>,
         _parent: Option<TypedStack<Self::ParentStack>>,
     ) -> KResult<()>;
 
     /// helper function to read struct
     fn read_into<S: KStream, T: KStruct<'r, 's> + Default>(
         _io: &'s S,
-        _root: Option<&'r T::Root>,
+        _root: Rc<T::Root>,
         _parent: Option<TypedStack<T::ParentStack>>,
     ) -> KResult<T> {
         let mut t = T::default();
@@ -79,7 +79,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
     fn read<S: KStream>(
         &self,
         _io: &'s S,
-        _root: Option<&'r Self::Root>,
+        _root: Rc<Self::Root>,
         _parent: Option<TypedStack<Self::ParentStack>>,
     ) -> KResult<()> {
         Ok(())
