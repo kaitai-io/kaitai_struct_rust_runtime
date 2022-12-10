@@ -46,7 +46,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
     fn read<S: KStream>(
         &self,
         _io: &'s S,
-        _root: Rc<Self::Root>,
+        _root: Option<Rc<Self::Root>>,
         _parent: Option<TypedStack<Self::ParentStack>>,
     ) -> KResult<()>;
 
@@ -57,7 +57,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
         _parent: Option<TypedStack<T::ParentStack>>,
     ) -> KResult<T> {
         let mut t = T::default();
-        t.read(_io, _root, _parent)?;
+        t.read(_io, Some(_root), _parent)?;
         Ok(t)
     }
 }
@@ -79,7 +79,7 @@ impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
     fn read<S: KStream>(
         &self,
         _io: &'s S,
-        _root: Rc<Self::Root>,
+        _root: Option<Rc<Self::Root>>,
         _parent: Option<TypedStack<Self::ParentStack>>,
     ) -> KResult<()> {
         Ok(())
