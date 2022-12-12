@@ -53,11 +53,11 @@ pub trait KStruct<'r, 's: 'r>: Default {
     /// helper function to read struct
     fn read_into<S: KStream, T: KStruct<'r, 's> + Default>(
         _io: &'s S,
-        _root: Rc<T::Root>,
+        _root: Option<Rc<T::Root>>,
         _parent: Option<TypedStack<T::ParentStack>>,
     ) -> KResult<T> {
         let mut t = T::default();
-        t.read(_io, Some(_root), _parent)?;
+        t.read(_io, _root, _parent)?;
         Ok(t)
     }
 }
