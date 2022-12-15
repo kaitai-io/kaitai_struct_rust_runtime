@@ -40,49 +40,25 @@ pub trait CustomDecoder {
 
 pub trait KStruct<'r, 's: 'r>: Default {
     type Root: KStruct<'r, 's>;
-    type ParentStack;
+    type Parent: KStruct<'r, 's>;
 
     /// Parse this struct (and any children) from the supplied stream
     fn read<S: KStream>(
         &self,
         _io: &'s S,
         _root: Option<Rc<Self::Root>>,
-        _parent: Option<TypedStack<Self::ParentStack>>,
+        _parent: Option<&'r Self::Parent>,
     ) -> KResult<()>;
 
     /// helper function to read struct
     fn read_into<S: KStream, T: KStruct<'r, 's> + Default>(
         _io: &'s S,
         _root: Option<Rc<T::Root>>,
-        _parent: Option<TypedStack<T::ParentStack>>,
+        _parent: Option<&'r T::Parent>,
     ) -> KResult<T> {
         let mut t = T::default();
         t.read(_io, _root, _parent)?;
         Ok(t)
-    }
-}
-
-/// Dummy struct used to indicate an absence of value; needed for
-/// root structs to satisfy the associated type bounds in the
-/// `KStruct` trait.
-#[derive(Debug, Default, Copy, Clone, PartialEq)]
-pub struct KStructUnit;
-impl KStructUnit {
-    pub fn parent_stack() -> TypedStack<KStructUnit> {
-        TypedStack { current: (KStructUnit) }
-    }
-}
-impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
-    type Root = KStructUnit;
-    type ParentStack = KStructUnit;
-
-    fn read<S: KStream>(
-        &self,
-        _io: &'s S,
-        _root: Option<Rc<Self::Root>>,
-        _parent: Option<TypedStack<Self::ParentStack>>,
-    ) -> KResult<()> {
-        Ok(())
     }
 }
 
@@ -527,6 +503,8 @@ kf_min!(kf64_min, f64);
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::BorrowMut;
+
     use super::*;
 
     #[test]
@@ -672,4 +650,96 @@ mod tests {
         assert_eq!(reader.seek(9).unwrap_err(),
             KError::Incomplete(Needed::Size(1)));
     }
+
+    #[derive(Default, Debug, Clone, PartialEq)]
+    struct RootStruct;
+    impl<'r, 's: 'r> KStruct<'r, 's> for RootStruct {
+        type Root = Self;
+        type Parent = Self;
+
+        fn read<S: KStream>(
+                &self,
+                _io: &'s S,
+                _root: Option<Rc<Self::Root>>,
+                _parent: Option<&'r Self::Parent>,
+            ) -> KResult<()> {
+                Ok(())
+        }
+    }
+
+    #[test]
+    fn empty_parent() {
+        let b = [];
+        let reader = BytesReader::new(&b[..]);
+        let _root_struct: RootStruct = RootStruct::read_into(&reader, None, None).unwrap();
+    }
+
+    #[derive(Default, Debug, Clone)]
+    struct ChildStruct {
+        parent: RefCell<RootStruct>,
+    }
+
+    impl<'r, 's: 'r> KStruct<'r, 's> for ChildStruct {
+        type Root = RootStruct;
+        type Parent = RootStruct;
+
+        fn read<S: KStream>(
+                &self,
+                _io: &'s S,
+                _root: Option<Rc<Self::Root>>,
+                _parent: Option<&'r Self::Parent>,
+            ) -> KResult<()> {
+                if let Some(parent) = _parent {
+                    *self.parent.borrow_mut() = parent.clone();
+                }
+
+                Ok(())
+        }
+    }
+
+    #[test]
+    fn root_is_parent() {
+        let b = [];
+        let reader = BytesReader::new(&b[..]);
+        let root_struct = Rc::<RootStruct>::new(RootStruct::read_into(&reader, None, None).unwrap());
+        let ors = Some(root_struct.clone());
+        let child_struct: ChildStruct = ChildStruct::read_into(&reader, ors, Some(&*root_struct.clone())).unwrap();
+
+        assert_eq!(*child_struct.parent.borrow(), *root_struct);
+    }
+
+    #[derive(Default, Debug, Clone)]
+    struct GrandChildStruct {
+        parent: RefCell<ChildStruct>,
+    }
+
+    impl<'r, 's: 'r> KStruct<'r, 's> for GrandChildStruct {
+        type Root = RootStruct;
+        type Parent = ChildStruct;
+
+        fn read<S: KStream>(
+                &self,
+                _io: &'s S,
+                _root: Option<Rc<Self::Root>>,
+                _parent: Option<&'r Self::Parent>,
+            ) -> KResult<()> {
+                if let Some(parent) = _parent {
+                    *self.parent.borrow_mut() = parent.clone();
+                }
+
+                Ok(())
+        }
+    }
+
+    #[test]
+    fn child_is_parent() {
+        let b = [];
+        let reader = BytesReader::new(&b[..]);
+        let root_struct = Rc::<RootStruct>::new(RootStruct::read_into(&reader, None, None).unwrap());
+        let child_struct: ChildStruct = ChildStruct::read_into(&reader,Some(root_struct.clone ()), Some(&*root_struct.clone())).unwrap();
+        let grand_child_struct: GrandChildStruct = GrandChildStruct::read_into(&reader, Some(root_struct.clone()), Some(&child_struct.clone())).unwrap();
+
+        assert_eq!(*child_struct.parent.borrow(), *root_struct);
+    }
+
 }
