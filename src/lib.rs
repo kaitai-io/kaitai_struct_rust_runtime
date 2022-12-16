@@ -69,40 +69,6 @@ impl From<std::io::Error> for KError {
         Self::IoError{ desc: err.to_string() }            
     }
 }
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub struct TypedStack<C> {
-    current: C,
-}
-impl<C> TypedStack<C>
-where
-    C: Clone,
-{
-    fn clone(&self) -> Self {
-        TypedStack {
-            current: self.current.clone(),
-        }
-    }
-    pub fn push<N>(&self, next: N) -> TypedStack<(N, C)> {
-        TypedStack {
-            current: (next, self.current.clone()),
-        }
-    }
-}
-impl<C, P> TypedStack<(C, P)>
-where
-    C: Clone,
-    P: Clone,
-{
-    pub fn peek(&self) -> &C {
-        &self.current.0
-    }
-
-    pub fn pop(&self) -> TypedStack<P> {
-        TypedStack {
-            current: (self.current.clone().1),
-        }
-    }
-}
 
 pub trait KStream {
     fn is_eof(&self) -> bool;
@@ -503,7 +469,7 @@ kf_min!(kf64_min, f64);
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::BorrowMut;
+    use std::{borrow::BorrowMut, clone};
 
     use super::*;
 
@@ -577,16 +543,6 @@ mod tests {
     }
 
     #[test]
-    fn stack_clone() {
-        let t = TypedStack { current: () };
-        let t2: TypedStack<(u8, ())> = t.push(12);
-        let t3: TypedStack<(u16, (u8, ()))> = t2.push(14);
-
-        assert_eq!(*t3.peek(), 14);
-        assert_eq!(*t3.pop().peek(), *t2.peek());
-    }
-
-    #[test]
     fn read_bytes_term() {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let reader = BytesReader::new(&b[..]);
@@ -652,17 +608,25 @@ mod tests {
     }
 
     #[derive(Default, Debug, Clone, PartialEq)]
-    struct RootStruct;
+    struct RootStruct {
+        child: RefCell<Option<Box<ChildStruct>>>,
+    }
+
     impl<'r, 's: 'r> KStruct<'r, 's> for RootStruct {
         type Root = Self;
         type Parent = Self;
 
         fn read<S: KStream>(
                 &self,
-                _io: &'s S,
-                _root: Option<Rc<Self::Root>>,
+                io: &'s S,
+                root: Option<Rc<Self::Root>>,
                 _parent: Option<&'r Self::Parent>,
             ) -> KResult<()> {
+                let rc = match root {
+                    Some(r) => r.clone(),
+                    None => Rc::new(self.clone()),
+                };
+                *self.child.borrow_mut() = Some(Box::new(ChildStruct::read_into(io, Some(rc), Some(self))?));
                 Ok(())
         }
     }
@@ -671,10 +635,10 @@ mod tests {
     fn empty_parent() {
         let b = [];
         let reader = BytesReader::new(&b[..]);
-        let _root_struct: RootStruct = RootStruct::read_into(&reader, None, None).unwrap();
+        let root_struct: RootStruct = RootStruct::read_into(&reader, None, None).unwrap();
     }
 
-    #[derive(Default, Debug, Clone)]
+    #[derive(Default, Debug, Clone, PartialEq)]
     struct ChildStruct {
         parent: RefCell<RootStruct>,
     }
@@ -705,7 +669,9 @@ mod tests {
         let ors = Some(root_struct.clone());
         let child_struct: ChildStruct = ChildStruct::read_into(&reader, ors, Some(&*root_struct.clone())).unwrap();
 
+        dbg!(&child_struct);
         assert_eq!(*child_struct.parent.borrow(), *root_struct);
+        assert_eq!(**child_struct.parent.borrow().child.borrow().as_ref().unwrap(), child_struct);
     }
 
     #[derive(Default, Debug, Clone)]
