@@ -1,7 +1,7 @@
 use std::{ 
     {marker::PhantomData},
     {cell::{RefCell, UnsafeCell}},
-    {rc::{Rc, Weak}},
+    {rc::Rc},
     {ops::{Deref, DerefMut}},
     {ptr::NonNull},
 };
@@ -88,37 +88,6 @@ impl<T: Default + Clone> Clone for  ParamType<T> {
         Self(
             UnsafeCell::new(unsafe { (self.0.get()).as_ref() }.unwrap().clone())
         )
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct RootType<T>(RefCell<Weak<T>>);
-
-impl<T: Clone> RootType<T> {
-    pub fn get(&self) -> Rc<T> {
-        self.0.borrow().upgrade().unwrap()
-    }
-
-    pub fn set(&self, rc: &Rc<T>) {
-        *self.0.borrow_mut() = Rc::downgrade(&rc.clone());
-    }
-}
-
-impl<T: PartialEq> PartialEq<T> for RootType<T> {
-    fn eq(&self, other: &T) -> bool {
-        std::unimplemented!()//self.get().eq(other)
-    }
-}
-
-impl<T: PartialOrd> PartialOrd<T> for RootType<T> {
-    fn partial_cmp(&self, other: &T) -> Option<std::cmp::Ordering> {
-        std::unimplemented!()
-    }
-}
-
-impl<T: Clone> Clone for RootType<T> {
-    fn clone(&self) -> Self {
-        std::unimplemented!()
     }
 }
 
