@@ -5,7 +5,9 @@ use unicode_segmentation::UnicodeSegmentation;
 use std::{  {rc::{Rc, Weak}, 
             cell::RefCell, string::FromUtf16Error},
             io::Read,
-            ops::{Deref, DerefMut}};
+            ops::{Deref, DerefMut},
+            any::Any,
+        };
 use flate2::read::ZlibDecoder;
 use once_cell::unsync::OnceCell;
 
@@ -53,9 +55,9 @@ impl<T> Default for Shared<T> {
 #[derive(Default, Debug)]
 pub struct SharedType<T>(RefCell<Shared<T>>);
 
-impl<T: Default> SharedType<T> {
-    pub fn new() -> Self {
-        Self(RefCell::new(Shared::Main(Rc::new(T::default()))))
+impl<T> SharedType<T> {
+    pub fn new(t:& T) -> Self {
+        Self(RefCell::new(Shared::Main(Rc::new(*t))))
     }
 
     pub fn get(&self) -> Rc<T> {
@@ -120,26 +122,42 @@ pub trait KStruct<'r, 's: 'r>: Default + Clone {
     ) -> KResult<()>;
 
     /// helper function to read struct
-    fn read_into<S: KStream, T: KStruct<'r, 's> + Default>(
+    fn read_into<S: KStream, T: KStruct<'r, 's> + Default + Any>(
         _io: &'s S,
         _root: Option<SharedType<T::Root>>,
         _parent: Option<SharedType<T::Parent>>,
     ) -> KResult<T> {
+        let t = T::default();
         let mut root: SharedType<T::Root>;
         if let Some(rc) = _root {
             root = rc;
         } else {
-            root = SharedType::<T::Root>::new();
+            let t_any = &t as &dyn Any;
+            match t_any.downcast_ref::<Self::Root>() {
+                Some(as_root) => {
+                    root = SharedType::<T::Root>::new(as_root.into());
+                }
+                None => {
+                    panic!("not a root type");
+                }
+            }
         }
 
         let mut parent: SharedType<T::Parent>;
         if let Some(par) = _parent {
             parent = par;
         } else {
-            parent = SharedType::<T::Parent>::new();
+            let t_any = &t as &dyn Any;
+            match t_any.downcast_ref::<Self::Parent>() {
+                Some(as_parent) => {
+                    parent = SharedType::<T::Parent>::new(as_parent);
+                }
+                None => {
+                    panic!("not a parent type");
+                }
+            }
         }
         
-        let t = T::default();
         t.read(_io, root, parent)?;
         Ok(t)
     }
