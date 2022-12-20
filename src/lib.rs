@@ -53,9 +53,9 @@ impl<T> Default for Shared<T> {
 #[derive(Default, Debug)]
 pub struct SharedType<T>(RefCell<Shared<T>>);
 
-impl<T: Default + Clone> SharedType<T> {
-    pub fn new(t:& T) -> Self {
-        Self(RefCell::new(Shared::Main(Rc::new(t.clone()))))
+impl<T: Default> SharedType<T> {
+    pub fn new() -> Self {
+        Self(RefCell::new(Shared::Main(Rc::new(T::default()))))
     }
 
     pub fn get(&self) -> Rc<T> {
@@ -84,6 +84,7 @@ impl<T: Default + Clone> SharedType<T> {
                 panic!("attempt to set Shared::Empty"),
         }
     }
+
 }
 
 //overflow evaluating the requirement `SharedType<RootStruct>: PartialEq`
@@ -128,16 +129,14 @@ pub trait KStruct<'r, 's: 'r>: Default + Clone {
         if let Some(rc) = _root {
             root = rc;
         } else {
-            let r = T::Root::default();
-            root = SharedType::<T::Root>::new(&r);
+            root = SharedType::<T::Root>::new();
         }
 
         let mut parent: SharedType<T::Parent>;
         if let Some(par) = _parent {
             parent = par;
         } else {
-            let p = T::Parent::default();
-            parent = SharedType::<T::Parent>::new(&p);
+            parent = SharedType::<T::Parent>::new();
         }
         
         let t = T::default();
@@ -693,14 +692,8 @@ mod tests {
 
     #[derive(Default, Debug, Clone)]
     struct RootStruct {
-        child: SharedType<ChildStruct>,
+        child: RefCell<SharedType<ChildStruct>>,
     }
-
-    // impl PartialEq for SharedType<ChildStruct> {
-    //     fn eq(&self, other: &Self) -> bool {
-    //         unimplemented!()
-    //     }
-    // }
 
     impl<'r, 's: 'r> KStruct<'r, 's> for RootStruct {
         type Root = Self;
@@ -713,7 +706,7 @@ mod tests {
                 parent: SharedType<Self::Parent>,
             ) -> KResult<()> {
                 let x = ChildStruct::read_into(io, Some(root), Some(parent))?;
-                self.child.set(Rc::new(x));
+                *self.child.borrow_mut() = x;// ChildStruct::read_into(io, Some(root), Some(parent))?;
                 Ok(())
         }
     }
@@ -733,6 +726,20 @@ mod tests {
     impl PartialEq for SharedType<RootStruct> {
         fn eq(&self, other: &Self) -> bool {
             unimplemented!()
+        }
+    }
+
+    impl<'r, 's: 'r> KStruct<'r, 's> for SharedType<ChildStruct> {
+        type Root = RootStruct;
+        type Parent = RootStruct;
+
+        fn read<S: KStream>(
+                &self,
+                _io: &'s S,
+                _root: SharedType<Self::Root>,
+                _parent: SharedType<Self::Parent>,
+            ) -> KResult<()> {
+            self.get().read(_io, _root, _parent)
         }
     }
 
