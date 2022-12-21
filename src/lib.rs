@@ -6,7 +6,7 @@ use std::{  {rc::{Rc, Weak},
             cell::RefCell, string::FromUtf16Error},
             io::Read,
             ops::{Deref, DerefMut},
-            any::Any,
+            any::Any, borrow::Borrow,
         };
 use flate2::read::ZlibDecoder;
 use once_cell::unsync::OnceCell;
@@ -56,8 +56,8 @@ impl<T> Default for Shared<T> {
 pub struct SharedType<T>(RefCell<Shared<T>>);
 
 impl<T> SharedType<T> {
-    pub fn new(t: T) -> Self {
-        Self(RefCell::new(Shared::Main(Rc::new(t))))
+    pub fn new(t: Rc<T>) -> Self {
+        Self(RefCell::new(Shared::Main(Rc::clone(&t))))
     }
 
     pub fn get(&self) -> Rc<T> {
@@ -126,19 +126,19 @@ pub trait KStruct<'r, 's: 'r>: Default + Clone {
         _io: &'s S,
         _root: Option<SharedType<T::Root>>,
         _parent: Option<SharedType<T::Parent>>,
-    ) -> KResult<T> {
-        let t = T::default();
+    ) -> KResult<Rc<T>> {
+        let t = Rc::new(T::default());
         let mut root: SharedType<T::Root>;
         if let Some(rc) = _root {
             root = rc;
         } else {
             let t_any = &t as &dyn Any;
-            match t_any.downcast_ref::<Self::Root>() {
+            match t_any.downcast_ref::<Rc<Self::Root>>() {
                 Some(as_root) => {
                     let r = unsafe {
-                        std::mem::transmute::<&Self::Root, &<T as KStruct<'r, 's>>::Root>(as_root)
+                        std::mem::transmute::<&Rc<Self::Root>, &Rc<<T as KStruct<'r, 's>>::Root>>(as_root)
                     };
-                    root = SharedType::<T::Root>::new(r);
+                    root = SharedType::<T::Root>::new(Rc::clone(r));
                 }
                 None => {
                     panic!("not a root type");
@@ -151,12 +151,12 @@ pub trait KStruct<'r, 's: 'r>: Default + Clone {
             parent = par;
         } else {
             let t_any = &t as &dyn Any;
-            match t_any.downcast_ref::<Self::Parent>() {
+            match t_any.downcast_ref::<Rc<Self::Parent>>() {
                 Some(as_parent) => {
                     let p = unsafe {
-                        std::mem::transmute::<&Self::Parent, &<T as KStruct<'r, 's>>::Parent>(as_parent)
+                        std::mem::transmute::<&Rc<Self::Parent>, &Rc<<T as KStruct<'r, 's>>::Parent>>(as_parent)
                     };
-                    parent = SharedType::<T::Parent>::new(p);
+                    parent = SharedType::<T::Parent>::new(Rc::clone(p));
                 }
                 None => {
                     panic!("not a parent type");
@@ -730,7 +730,7 @@ mod tests {
                 parent: SharedType<Self::Parent>,
             ) -> KResult<()> {
                 let x = ChildStruct::read_into(io, Some(root), Some(parent))?;
-                *self.child.borrow_mut() = x;// ChildStruct::read_into(io, Some(root), Some(parent))?;
+                *self.child.borrow_mut() = SharedType::new(x);
                 Ok(())
         }
     }
@@ -739,7 +739,7 @@ mod tests {
     fn empty_parent() {
         let b = [];
         let reader = BytesReader::new(&b[..]);
-        let root_struct: RootStruct = RootStruct::read_into(&reader, None, None).unwrap();
+        let root_struct: Rc<RootStruct> = RootStruct::read_into(&reader, None, None).unwrap();
     }
 
     #[derive(Default, Debug, Clone, PartialEq)]
