@@ -56,8 +56,8 @@ impl<T> Default for Shared<T> {
 pub struct SharedType<T>(RefCell<Shared<T>>);
 
 impl<T> SharedType<T> {
-    pub fn new(t:& T) -> Self {
-        Self(RefCell::new(Shared::Main(Rc::new(*t))))
+    pub fn new(t: T) -> Self {
+        Self(RefCell::new(Shared::Main(Rc::new(t))))
     }
 
     pub fn get(&self) -> Rc<T> {
@@ -110,8 +110,8 @@ impl<T: Clone> Clone for SharedType<T> {
 }
 
 pub trait KStruct<'r, 's: 'r>: Default + Clone {
-    type Root: KStruct<'r, 's>;
-    type Parent: KStruct<'r, 's>;
+    type Root: KStruct<'r, 's>  + 'static;
+    type Parent: KStruct<'r, 's>  + 'static;
 
     /// Parse this struct (and any children) from the supplied stream
     fn read<S: KStream>(
@@ -135,7 +135,10 @@ pub trait KStruct<'r, 's: 'r>: Default + Clone {
             let t_any = &t as &dyn Any;
             match t_any.downcast_ref::<Self::Root>() {
                 Some(as_root) => {
-                    root = SharedType::<T::Root>::new(as_root.into());
+                    let r = unsafe {
+                        std::mem::transmute::<&Self::Root, &<T as KStruct<'r, 's>>::Root>(as_root)
+                    };
+                    root = SharedType::<T::Root>::new(r);
                 }
                 None => {
                     panic!("not a root type");
@@ -150,7 +153,10 @@ pub trait KStruct<'r, 's: 'r>: Default + Clone {
             let t_any = &t as &dyn Any;
             match t_any.downcast_ref::<Self::Parent>() {
                 Some(as_parent) => {
-                    parent = SharedType::<T::Parent>::new(as_parent);
+                    let p = unsafe {
+                        std::mem::transmute::<&Self::Parent, &<T as KStruct<'r, 's>>::Parent>(as_parent)
+                    };
+                    parent = SharedType::<T::Parent>::new(p);
                 }
                 None => {
                     panic!("not a parent type");
