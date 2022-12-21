@@ -39,77 +39,28 @@ pub trait CustomDecoder {
     fn decode(&self, bytes: &[u8]) -> Vec<u8>;
 }
 
-#[derive(Debug)]
-enum Shared<T> {
-    Empty,
-    Main(Rc<T>),
-    Slave(Weak<T>),
-}
-
-impl<T> Default for Shared<T> {
-    fn default() -> Self {
-        Shared::Empty
-    }
-}
-
 #[derive(Default, Debug)]
-pub struct SharedType<T>(RefCell<Shared<T>>);
+pub struct SharedType<T>(RefCell<Option<Rc<T>>>);
 
 impl<T> SharedType<T> {
     pub fn new(t: Rc<T>) -> Self {
-        Self(RefCell::new(Shared::Main(Rc::clone(&t))))
+        Self(RefCell::new(Some(Rc::clone(&t))))
     }
 
     pub fn get(&self) -> Rc<T> {
-        match *self.0.borrow()  {
-            Shared::Main(ref rc) => 
-                Rc::clone(rc),
-            Shared::Slave(ref weak) => {
-                let x = weak.upgrade().unwrap();
-                Rc::clone(&x)
-            },
-            Shared::Empty => 
-                panic!("attempt to get Shared::Empty"),
+        if let Some(rc) = &*self.0.borrow() {
+            rc.clone()
+        } else {
+            panic!("empty Rc")
         }
     }
 
     pub fn set(&self, rc: Rc<T>) {
-        let mut x = self.0.borrow_mut();
-        match *x {
-            Shared::Main(ref rc) => 
-                *x = Shared::Main(rc.clone()),
-            Shared::Slave(ref weak) => {
-                let y = weak.upgrade().unwrap().clone();
-                *x = Shared::Slave(Rc::downgrade(&y));
-            },
-            Shared::Empty => 
-                panic!("attempt to set Shared::Empty"),
-        }
-    }
-
-}
-
-//overflow evaluating the requirement `SharedType<RootStruct>: PartialEq`
-// impl<T, U: PartialEq> PartialEq<U> for SharedType<T> {
-//     fn eq(&self, other: &U) -> bool {
-//         std::unimplemented!()//self.get().eq(other)
-//     }
-// }
-
-// impl<T, U: PartialOrd> PartialOrd<U> for SharedType<T> {
-//     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-//         std::unimplemented!()
-//     }
-// }
-
-impl<T: Clone> Clone for SharedType<T> {
-    fn clone(&self) -> Self {
-        unimplemented!();
-        SharedType::<T>::clone(self)
+        *self.0.borrow_mut() = Some(rc.clone())
     }
 }
 
-pub trait KStruct<'r, 's: 'r>: Default + Clone {
+pub trait KStruct<'r, 's: 'r>: Default {
     type Root: KStruct<'r, 's>  + 'static;
     type Parent: KStruct<'r, 's>  + 'static;
 
@@ -714,7 +665,7 @@ mod tests {
             KError::Incomplete(Needed::Size(1)));
     }
 
-    #[derive(Default, Debug, Clone)]
+    #[derive(Default, Debug, PartialEq)]
     struct RootStruct {
         child: RefCell<SharedType<ChildStruct>>,
     }
@@ -740,16 +691,26 @@ mod tests {
         let b = [];
         let reader = BytesReader::new(&b[..]);
         let root_struct: Rc<RootStruct> = RootStruct::read_into(&reader, None, None).unwrap();
+        let child = root_struct.as_ref().child.borrow().get();
+        let parent = child.parent.borrow().get();
+        assert_eq!(*root_struct.as_ref(), *parent.as_ref());
     }
 
-    #[derive(Default, Debug, Clone, PartialEq)]
+    #[derive(Default, Debug, PartialEq)]
     struct ChildStruct {
         parent: RefCell<SharedType<RootStruct>>,
+        data: RefCell<i32>,
     }
 
     impl PartialEq for SharedType<RootStruct> {
         fn eq(&self, other: &Self) -> bool {
             unimplemented!()
+        }
+    }
+
+    impl PartialEq for SharedType<ChildStruct> {
+        fn eq(&self, other: &Self) -> bool {
+            self.get().data == other.get().data
         }
     }
 
@@ -763,6 +724,7 @@ mod tests {
                 _root: SharedType<Self::Root>,
                 _parent: SharedType<Self::Parent>,
             ) -> KResult<()> {
+            *self.get().data.borrow_mut() = 123;
             self.get().read(_io, _root, _parent)
         }
     }
