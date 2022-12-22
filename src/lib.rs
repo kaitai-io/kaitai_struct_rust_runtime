@@ -668,6 +668,7 @@ mod tests {
     #[derive(Default, Debug, PartialEq)]
     struct RootStruct {
         child: RefCell<SharedType<ChildStruct>>,
+        data: RefCell<u32>,
     }
 
     impl<'r, 's: 'r> KStruct<'r, 's> for RootStruct {
@@ -680,6 +681,7 @@ mod tests {
                 root: SharedType<Self::Root>,
                 parent: SharedType<Self::Parent>,
             ) -> KResult<()> {
+                *self.data.borrow_mut() = 1;
                 let x = ChildStruct::read_into(io, Some(root), Some(parent))?;
                 *self.child.borrow_mut() = SharedType::new(x);
                 Ok(())
@@ -699,7 +701,8 @@ mod tests {
     #[derive(Default, Debug, PartialEq)]
     struct ChildStruct {
         parent: RefCell<SharedType<RootStruct>>,
-        data: RefCell<i32>,
+        child2: RefCell<SharedType<ChildStruct2>>,
+        data: RefCell<u32>,
     }
 
     impl PartialEq for SharedType<RootStruct> {
@@ -714,7 +717,7 @@ mod tests {
         }
     }
 
-    impl<'r, 's: 'r> KStruct<'r, 's> for SharedType<ChildStruct> {
+    impl<'r, 's: 'r> KStruct<'r, 's> for ChildStruct {
         type Root = RootStruct;
         type Parent = RootStruct;
 
@@ -724,14 +727,48 @@ mod tests {
                 _root: SharedType<Self::Root>,
                 _parent: SharedType<Self::Parent>,
             ) -> KResult<()> {
-            *self.get().data.borrow_mut() = 123;
-            self.get().read(_io, _root, _parent)
+                *self.parent.borrow_mut() = _parent;
+                *self.data.borrow_mut() = 2;
+                //self.read(_io, SharedType::<Self::Root>::new(_root.get()), _parent);
+                let x = ChildStruct2::read_into(_io, Some(_root), /*???*/)?;
+                *self.child2.borrow_mut() = SharedType::new(x);
+
+                Ok(())
         }
     }
 
-    impl<'r, 's: 'r> KStruct<'r, 's> for ChildStruct {
+    //////////////////////////////////////////////////
+    #[derive(Default, Debug, PartialEq)]
+    struct ChildStruct2 {
+        parent: RefCell<SharedType<ChildStruct>>,
+        data: RefCell<u32>,
+    }
+
+    impl PartialEq for SharedType<ChildStruct2> {
+        fn eq(&self, other: &Self) -> bool {
+            self.get().data == other.get().data
+        }
+    }
+
+    impl<'r, 's: 'r> KStruct<'r, 's> for SharedType<ChildStruct2> {
         type Root = RootStruct;
-        type Parent = RootStruct;
+        type Parent = ChildStruct;
+
+        fn read<S: KStream>(
+                &self,
+                _io: &'s S,
+                _root: SharedType<Self::Root>,
+                _parent: SharedType<Self::Parent>,
+            ) -> KResult<()> {
+            *self.get().data.borrow_mut() = 3;    
+            //self.get().read(_io, _root, _parent)
+            Ok(())
+        }
+    }
+
+    impl<'r, 's: 'r> KStruct<'r, 's> for ChildStruct2 {
+        type Root = RootStruct;
+        type Parent = ChildStruct;
 
         fn read<S: KStream>(
                 &self,
@@ -744,20 +781,24 @@ mod tests {
                 Ok(())
         }
     }
-/*
+
     #[test]
     fn root_is_parent() {
         let b = [];
         let reader = BytesReader::new(&b[..]);
-        let root_struct = Rc::<RootStruct>::new(RootStruct::read_into(&reader, None, None).unwrap());
-        let ors = Some(root_struct.clone());
-        let child_struct: ChildStruct = ChildStruct::read_into(&reader, ors, Some(&*root_struct.clone())).unwrap();
+        let root_struct: Rc<RootStruct> = RootStruct::read_into(&reader, None, None).unwrap();
+        println!("{}", *root_struct.data.borrow());
+        println!("{}", *root_struct.child.borrow().get().data.borrow());
+        println!("{}", *root_struct.child.borrow().get().child2.borrow().get().data.borrow());
 
-        dbg!(&child_struct);
-        assert_eq!(*child_struct.parent.borrow(), *root_struct);
-        assert_eq!(**child_struct.parent.borrow().child.borrow().as_ref().unwrap(), child_struct);
+        // let ors = Some(root_struct.clone());
+        // let child_struct: ChildStruct = ChildStruct::read_into(&reader, ors, Some(&*root_struct.clone())).unwrap();
+
+        // dbg!(&child_struct);
+        // assert_eq!(*child_struct.parent.borrow(), *root_struct);
+        // assert_eq!(**child_struct.parent.borrow().child.borrow().as_ref().unwrap(), child_struct);
     }
-
+/*
     #[derive(Default, Debug, Clone)]
     struct GrandChildStruct {
         parent: RefCell<ChildStruct>,
