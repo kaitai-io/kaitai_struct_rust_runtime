@@ -78,7 +78,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
 
     /// Parse this struct (and any children) from the supplied stream
     fn read<S: KStream>(
-        &self,
+        self_rc: &Rc<Self>,
         _io: &'s S,
         _root: SharedType<Self::Root>,
         _parent: SharedType<Self::Parent>,
@@ -112,10 +112,10 @@ pub trait KStruct<'r, 's: 'r>: Default {
         let mut parent: SharedType<T::Parent>;
         {
             let t_any = &t as &dyn Any;
-            match t_any.downcast_ref::<Rc<Self::Parent>>() {
+            match t_any.downcast_ref::<Rc<T::Parent>>() {
                 Some(as_parent) => {
                     let p = unsafe {
-                        std::mem::transmute::<&Rc<Self::Parent>, &Rc<<T as KStruct<'r, 's>>::Parent>>(as_parent)
+                        std::mem::transmute::<&Rc<T::Parent>, &Rc<<T as KStruct<'r, 's>>::Parent>>(as_parent)
                     };
                     parent = SharedType::<T::Parent>::new(Rc::clone(p));
                 }
@@ -125,7 +125,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
             }
         }
         
-        t.read(_io, root, parent)?;
+        T::read(&t, _io, root, parent)?;
         Ok(t)
     }
 }
