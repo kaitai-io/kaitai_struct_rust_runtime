@@ -1,3 +1,4 @@
+#![feature(type_name_of_val)]
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
@@ -6,10 +7,13 @@ use std::{  {rc::{Rc, Weak},
             cell::RefCell, string::FromUtf16Error},
             io::Read,
             ops::{Deref, DerefMut},
-            any::Any, borrow::Borrow,
+            any::{Any, type_name_of_val, type_name}, 
+            borrow::Borrow,
         };
 use flate2::read::ZlibDecoder;
 use once_cell::unsync::OnceCell;
+
+pub mod pt;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Needed {
@@ -43,8 +47,16 @@ pub trait CustomDecoder {
 pub struct SharedType<T>(RefCell<Option<Rc<T>>>);
 
 impl<T> SharedType<T> {
-    pub fn new(t: Rc<T>) -> Self {
-        Self(RefCell::new(Some(Rc::clone(&t))))
+    pub fn new(rc: Rc<T>) -> Self {
+        Self(RefCell::new(Some(Rc::clone(&rc))))
+    }
+
+    pub fn clone(&self) -> Self {
+        if let Some(rc) = &*self.0.borrow() {
+            Self(RefCell::new(Some(Rc::clone(&rc))))
+        } else {
+            panic!("empty clone")
+        }
     }
 
     pub fn get(&self) -> Rc<T> {
@@ -98,9 +110,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
         }
 
         let mut parent: SharedType<T::Parent>;
-        if let Some(par) = _parent {
-            parent = par;
-        } else {
+        {
             let t_any = &t as &dyn Any;
             match t_any.downcast_ref::<Rc<Self::Parent>>() {
                 Some(as_parent) => {
@@ -110,7 +120,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
                     parent = SharedType::<T::Parent>::new(Rc::clone(p));
                 }
                 None => {
-                    panic!("not a parent type");
+                    panic!("`{}` is not a '{}' type", type_name_of_val(&t), type_name::<Rc<Self::Parent>>());
                 }
             }
         }
@@ -682,7 +692,7 @@ mod tests {
                 parent: SharedType<Self::Parent>,
             ) -> KResult<()> {
                 *self.data.borrow_mut() = 1;
-                let x = ChildStruct::read_into(io, Some(root), Some(parent))?;
+                let x = ChildStruct::read_into(io, Some(root.clone()), Some(parent.clone()))?;
                 *self.child.borrow_mut() = SharedType::new(x);
                 Ok(())
         }
@@ -730,7 +740,7 @@ mod tests {
                 *self.parent.borrow_mut() = _parent;
                 *self.data.borrow_mut() = 2;
                 //self.read(_io, SharedType::<Self::Root>::new(_root.get()), _parent);
-                let x = ChildStruct2::read_into(_io, Some(_root), /*???*/)?;
+                let x = ChildStruct2::read_into(_io, Some(_root), None)?;
                 *self.child2.borrow_mut() = SharedType::new(x);
 
                 Ok(())
