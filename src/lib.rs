@@ -110,7 +110,9 @@ pub trait KStruct<'r, 's: 'r>: Default {
         }
 
         let mut parent: SharedType<T::Parent>;
-        {
+        if let Some(rc) = _parent {
+            parent = rc;
+        } else {
             let t_any = &t as &dyn Any;
             match t_any.downcast_ref::<Rc<T::Parent>>() {
                 Some(as_parent) => {
