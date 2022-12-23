@@ -91,44 +91,34 @@ pub trait KStruct<'r, 's: 'r>: Default {
         _parent: Option<SharedType<T::Parent>>,
     ) -> KResult<Rc<T>> {
         let t = Rc::new(T::default());
-        let mut root: SharedType<T::Root>;
-        if let Some(rc) = _root {
-            root = rc;
-        } else {
-            let t_any = &t as &dyn Any;
-            match t_any.downcast_ref::<Rc<Self::Root>>() {
-                Some(as_root) => {
-                    let r = unsafe {
-                        std::mem::transmute::<&Rc<Self::Root>, &Rc<<T as KStruct<'r, 's>>::Root>>(as_root)
-                    };
-                    root = SharedType::<T::Root>::new(Rc::clone(r));
-                }
-                None => {
-                    panic!("not a root type");
-                }
-            }
-        }
-
-        let mut parent: SharedType<T::Parent>;
-        if let Some(rc) = _parent {
-            parent = rc;
-        } else {
-            let t_any = &t as &dyn Any;
-            match t_any.downcast_ref::<Rc<T::Parent>>() {
-                Some(as_parent) => {
-                    let p = unsafe {
-                        std::mem::transmute::<&Rc<T::Parent>, &Rc<<T as KStruct<'r, 's>>::Parent>>(as_parent)
-                    };
-                    parent = SharedType::<T::Parent>::new(Rc::clone(p));
-                }
-                None => {
-                    panic!("`{}` is not a '{}' type", type_name_of_val(&t), type_name::<Rc<Self::Parent>>());
-                }
-            }
-        }
+        let root = Self::downcast(_root, t.clone());
+        let parent = Self::downcast(_parent, t.clone());
         
         T::read(&t, _io, root, parent)?;
         Ok(t)
+    }
+
+    fn downcast<T, U>(opt_rc: Option<SharedType<U>>, t: Rc<T>) -> SharedType<U>
+        where   T: KStruct<'r, 's> + Default + Any,
+                U:'static
+    {
+        let result: SharedType<U> =
+            if let Some(rc) = opt_rc {
+                rc
+            } else {
+                let t_any = &t as &dyn Any;
+                //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
+                match t_any.downcast_ref::<Rc<U>>() {
+                    Some(as_result) => {
+                        SharedType::<U>::new(Rc::clone(as_result))
+                    }
+                    None => {
+                        panic!("`{}` is not a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
+                    }
+                }
+            };
+
+        result
     }
 }
 
