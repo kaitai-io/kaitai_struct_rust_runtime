@@ -128,6 +128,26 @@ pub trait KStruct<'r, 's: 'r>: Default {
     }
 }
 
+/// Dummy struct used to indicate an absence of value; needed for
+/// root structs to satisfy the associated type bounds in the
+/// `KStruct` trait.
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub struct KStructUnit;
+
+impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
+    type Root = KStructUnit;
+    type Parent = KStructUnit;
+
+    fn read<S: KStream>(
+        _self_rc: &Rc<Self>,
+        _io: &'s S,
+        _root: SharedType<Self::Root>,
+        _parent: SharedType<Self::Parent>,
+    ) -> KResult<()> {
+        Ok(())
+    }
+}
+
 use std::{fs, path::Path};
 
 impl From<std::io::Error> for KError {
