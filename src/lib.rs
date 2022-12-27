@@ -99,7 +99,22 @@ pub trait KStruct<'r, 's: 'r>: Default {
         let t = Rc::new(T::default());
         let root = Self::downcast(_root, t.clone());
         let parent = Self::downcast(_parent, t.clone());
-        
+        T::read(&t, _io, root, parent)?;
+        Ok(t)
+    }
+
+    /// helper function to special initialize and read struct
+    fn read_into_with_init<S: KStream, T: KStruct<'r, 's> + Default + Any>(
+        _io: &'s S,
+        _root: Option<SharedType<T::Root>>,
+        _parent: Option<SharedType<T::Parent>>,
+        init: &dyn Fn(&mut T) -> KResult<()>,
+    ) -> KResult<Rc<T>> {
+        let mut t = Rc::new(T::default());
+        init(Rc::get_mut(&mut t).unwrap())?;
+
+        let root = Self::downcast(_root, t.clone());
+        let parent = Self::downcast(_parent, t.clone());
         T::read(&t, _io, root, parent)?;
         Ok(t)
     }
