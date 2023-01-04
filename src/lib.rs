@@ -57,6 +57,14 @@ impl<T> SharedType<T> {
         Self(RefCell::new(Some(Rc::clone(&rc))))
     }
 
+    pub fn empty() -> Self {
+        Self(RefCell::new(None))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.borrow().is_none()
+    }
+
     pub fn clone(&self) -> Self {
         if let Some(rc) = &*self.0.borrow() {
             Self(RefCell::new(Some(Rc::clone(&rc))))
@@ -65,16 +73,21 @@ impl<T> SharedType<T> {
         }
     }
 
-    pub fn get(&self) -> Rc<T> {
+    pub fn get(&self) -> KResult<Rc<T>> {
         if let Some(rc) = &*self.0.borrow() {
-            rc.clone()
+            Ok(rc.clone())
         } else {
-            panic!("empty Rc")
+            // Root is always present
+            Err(KError::MissingParent)
         }
     }
 
-    pub fn set(&self, rc: Rc<T>) {
-        *self.0.borrow_mut() = Some(rc.clone())
+    pub fn get_value(&self) -> &RefCell<Option<Rc<T>>> {
+        &self.0
+    }
+
+    pub fn set(&self, rc: KResult<Rc<T>>) {
+        *self.0.borrow_mut() = rc.ok();
     }
 }
 
@@ -97,8 +110,8 @@ pub trait KStruct<'r, 's: 'r>: Default {
         _parent: Option<SharedType<T::Parent>>,
     ) -> KResult<Rc<T>> {
         let t = Rc::new(T::default());
-        let root = Self::downcast(_root, t.clone());
-        let parent = Self::downcast(_parent, t.clone());
+        let root = Self::downcast(_root, t.clone(), true);
+        let parent = Self::downcast(_parent, t.clone(), false);
         T::read(&t, _io, root, parent)?;
         Ok(t)
     }
@@ -113,33 +126,33 @@ pub trait KStruct<'r, 's: 'r>: Default {
         let mut t = Rc::new(T::default());
         init(Rc::get_mut(&mut t).unwrap())?;
 
-        let root = Self::downcast(_root, t.clone());
-        let parent = Self::downcast(_parent, t.clone());
+        let root = Self::downcast(_root, t.clone(), true);
+        let parent = Self::downcast(_parent, t.clone(), false);
         T::read(&t, _io, root, parent)?;
         Ok(t)
     }
 
-    fn downcast<T, U>(opt_rc: Option<SharedType<U>>, t: Rc<T>) -> SharedType<U>
+    fn downcast<T, U>(opt_rc: Option<SharedType<U>>, t: Rc<T>, panic: bool) -> SharedType<U>
         where   T: KStruct<'r, 's> + Default + Any,
                 U:'static
     {
-        let result: SharedType<U> =
-            if let Some(rc) = opt_rc {
-                rc
-            } else {
-                let t_any = &t as &dyn Any;
-                //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
-                match t_any.downcast_ref::<Rc<U>>() {
-                    Some(as_result) => {
-                        SharedType::<U>::new(Rc::clone(as_result))
-                    }
-                    None => {
+        if let Some(rc) = opt_rc {
+            rc
+        } else {
+            let t_any = &t as &dyn Any;
+            //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
+            match t_any.downcast_ref::<Rc<U>>() {
+                Some(as_result) => {
+                    SharedType::<U>::new(Rc::clone(as_result))
+                }
+                None => {
+                    if (panic) {
                         panic!("`{}` is not a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
                     }
+                    SharedType::<U>::empty()
                 }
-            };
-
-        result
+            }
+        }
     }
 }
 
