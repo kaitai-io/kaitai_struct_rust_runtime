@@ -9,6 +9,7 @@ use std::{  {rc::{Rc, Weak},
             ops::{Deref, DerefMut},
             any::{Any, type_name_of_val, type_name}, 
             borrow::Borrow,
+            fmt,
         };
 use flate2::read::ZlibDecoder;
 use once_cell::unsync::OnceCell;
@@ -43,12 +44,22 @@ pub trait CustomDecoder {
     fn decode(&self, bytes: &[u8]) -> Vec<u8>;
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct SharedType<T>(RefCell<Option<Rc<T>>>);
 
 impl<T> Clone for SharedType<T> {
     fn clone(&self) -> Self {
         self.clone()
+    }
+}
+
+// stop recursion while printing
+impl<T> fmt::Debug for SharedType<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &*self.0.borrow() {
+            Some(s) => write!(f, "SharedType(Some({:?}))", Rc::<T>::as_ptr(&s)),
+            None => write!(f, "SharedType(None)")
+        }
     }
 }
 
