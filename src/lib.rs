@@ -196,6 +196,7 @@ impl From<std::io::Error> for KError {
 }
 
 pub trait KStream {
+    fn clone(&self) -> BytesReader;
     fn is_eof(&self) -> bool;
     fn seek(&self, position: usize) -> KResult<()>;
     fn pos(&self) -> usize;
@@ -346,25 +347,42 @@ pub trait KStream {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 struct BytesReaderState {
     pos: usize,
     bits: u64,
     bits_left: i64,
 }
-pub struct BytesReader<'a> {
+
+#[derive(Default, Debug, Clone)]
+pub struct BytesReader {
     state: RefCell<BytesReaderState>,
-    bytes: &'a [u8],
+    bytes: bytes::Bytes,
 }
-impl<'a> BytesReader<'a> {
-    pub fn new(bytes: &'a [u8]) -> Self {
+
+impl From<Vec<u8>> for BytesReader {
+    fn from(vec: Vec<u8>) -> BytesReader {
         BytesReader {
             state: RefCell::new(BytesReaderState::default()),
-            bytes,
+            bytes: bytes::Bytes::from(vec),
         }
     }
 }
-impl<'a> KStream for BytesReader<'a> {
+
+impl From<&'static [u8]> for BytesReader {
+    fn from(slice: &'static [u8]) -> BytesReader {
+        BytesReader {
+            state: RefCell::new(BytesReaderState::default()),
+            bytes: bytes::Bytes::from_static(slice),
+        }
+    }
+}
+
+impl KStream for BytesReader {
+    fn clone(&self) -> BytesReader {
+        Clone::clone(self)
+    }
+
     fn is_eof(&self) -> bool {
         if self.state.borrow().bits_left > 0 {
             return false;
@@ -490,7 +508,6 @@ impl<'a> KStream for BytesReader<'a> {
         let cur_pos = self.state.borrow().pos;
         self.state.borrow_mut().pos = self.size();
         Ok(&self.bytes[cur_pos..self.size()])
-
     }
 
     fn read_bytes_term(&self, term: u8, include: bool, consume: bool, eos_error: bool)
@@ -519,8 +536,8 @@ use encoding::{Encoding, DecoderTrap};
 use encoding::label::encoding_from_whatwg_label;
 
 pub fn decode_string<'a>(
-     bytes: &'a [u8],
-     label: &'a str
+    bytes: &'a [u8],
+    label: &'a str
 ) -> KResult<String> {
 
     if let Some(enc) = encoding_from_whatwg_label(label) {
@@ -600,31 +617,31 @@ mod tests {
 
     #[test]
     fn basic_strip_right() {
-        let b = [1, 2, 3, 4, 5, 5, 5, 5];
-        let reader = BytesReader::new(&b[..]);
-        let c = reader.bytes_strip_right(&b, 5);
+        let b = vec![1, 2, 3, 4, 5, 5, 5, 5];
+        let reader = BytesReader::from(vec![]);
+        let c = reader.bytes_strip_right(&b[..], 5);
 
-        assert_eq!([1, 2, 3, 4], c);
+        assert_eq!([1, 2, 3, 4], c[..]);
     }
 
     #[test]
     fn basic_read_bytes() {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
 
-        assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
-        assert_eq!(reader.read_bytes(3).unwrap(), &[5, 6, 7]);
+        assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
+        assert_eq!(reader.read_bytes(3).unwrap()[..], [5, 6, 7]);
         assert_eq!(
             reader.read_bytes(4).unwrap_err(),
             KError::Incomplete(Needed::Size(3))
         );
-        assert_eq!(reader.read_bytes(1).unwrap(), &[8]);
+        assert_eq!(reader.read_bytes(1).unwrap()[..], [8]);
     }
 
     #[test]
     fn read_bits_single() {
         let b = vec![0x80];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
 
         assert_eq!(reader.read_bits_int_be(1).unwrap(), 1);
     }
@@ -633,7 +650,7 @@ mod tests {
     fn read_bits_multiple() {
         // 0xA0
         let b = vec![0b10100000];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
 
         assert_eq!(reader.read_bits_int_be(1).unwrap(), 1);
         assert_eq!(reader.read_bits_int_be(1).unwrap(), 0);
@@ -643,7 +660,7 @@ mod tests {
     #[test]
     fn read_bits_large() {
         let b = vec![0b10100000];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
 
         assert_eq!(reader.read_bits_int_be(3).unwrap(), 5);
     }
@@ -651,7 +668,7 @@ mod tests {
     #[test]
     fn read_bits_span() {
         let b = vec![0x01, 0x80];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
 
         assert_eq!(reader.read_bits_int_be(9).unwrap(), 3);
     }
@@ -659,7 +676,7 @@ mod tests {
     #[test]
     fn read_bits_too_large() {
         let b: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
 
         assert_eq!(
             reader.read_bits_int_be(65).unwrap_err(),
@@ -670,24 +687,24 @@ mod tests {
     #[test]
     fn read_bytes_term() {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
 
-        assert_eq!(reader.read_bytes_term(3, false, false, false).unwrap(), &[1, 2]);
-        assert_eq!(reader.read_bytes_term(3, true, false, true).unwrap(), &[3]);
-        assert_eq!(reader.read_bytes_term(3, false, true, true).unwrap(), &[]);
-        assert_eq!(reader.read_bytes_term(5, true, true, true).unwrap(), &[4, 5]);
-        assert_eq!(reader.read_bytes_term(8, false, false, true).unwrap(), &[6, 7]);
+        assert_eq!(reader.read_bytes_term(3, false, false, false).unwrap()[..], [1, 2]);
+        assert_eq!(reader.read_bytes_term(3, true, false, true).unwrap()[..], [3]);
+        assert_eq!(reader.read_bytes_term(3, false, true, true).unwrap()[..], []);
+        assert_eq!(reader.read_bytes_term(5, true, true, true).unwrap()[..], [4, 5]);
+        assert_eq!(reader.read_bytes_term(8, false, false, true).unwrap()[..], [6, 7]);
         assert_eq!(reader.read_bytes_term(11, false, true, true).unwrap_err(), KError::EncounteredEOF);
-        assert_eq!(reader.read_bytes_term(9, true, true, false).unwrap(), &[8, 9]);
-        assert_eq!(reader.read_bytes_term(10, true, false, false).unwrap(), &[10]);
+        assert_eq!(reader.read_bytes_term(9, true, true, false).unwrap()[..], [8, 9]);
+        assert_eq!(reader.read_bytes_term(10, true, false, false).unwrap()[..], [10]);
     }
 
     #[test]
     fn process_xor_one() {
         let b = vec![0x66];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
         fn as_stream_trait<S: KStream>(_io: &S) {
-            let res = S::process_xor_one(_io.read_bytes(1).unwrap(), 3);
+            let res = S::process_xor_one(&_io.read_bytes(1).unwrap()[..], 3);
             assert_eq!(0x65, res[0]);
         }
         as_stream_trait(&reader);
@@ -696,10 +713,10 @@ mod tests {
     #[test]
     fn process_xor_many() {
         let b = vec![0x66, 0x6F];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
         fn as_stream_trait<S: KStream>(_io: &S) {
             let key : Vec<u8> = vec![3, 3];
-            let res = S::process_xor_many(_io.read_bytes(2).unwrap(), &key);
+            let res = S::process_xor_many(&_io.read_bytes(2).unwrap()[..], &key);
             assert_eq!(vec![0x65, 0x6C], res);
         }
         as_stream_trait(&reader);
@@ -708,9 +725,9 @@ mod tests {
     #[test]
     fn process_rotate_left() {
         let b = vec![0x09, 0xAC];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
         fn as_stream_trait<S: KStream>(_io: &S) {
-            let res = S::process_rotate_left(_io.read_bytes(2).unwrap(), 3);
+            let res = S::process_rotate_left(&_io.read_bytes(2).unwrap()[..], 3);
             let expected : Vec<u8> = vec![0x48, 0x65];
             assert_eq!(expected, res);
         }
@@ -720,14 +737,14 @@ mod tests {
     #[test]
     fn basic_seek() {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
-        let reader = BytesReader::new(&b[..]);
+        let reader = BytesReader::from(b);
 
-        assert_eq!(reader.read_bytes(4).unwrap(), &[1, 2, 3, 4]);
+        assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
         let pos = reader.pos();
         reader.seek(1).unwrap();
-        assert_eq!(reader.read_bytes(4).unwrap(), &[2, 3, 4, 5]);
+        assert_eq!(reader.read_bytes(4).unwrap()[..], [2, 3, 4, 5]);
         reader.seek(pos).unwrap();
-        assert_eq!(reader.read_bytes(4).unwrap(), &[5, 6, 7, 8]);
+        assert_eq!(reader.read_bytes(4).unwrap()[..], [5, 6, 7, 8]);
         assert_eq!(reader.seek(9).unwrap_err(),
             KError::Incomplete(Needed::Size(1)));
     }
