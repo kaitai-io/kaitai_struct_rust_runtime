@@ -45,7 +45,7 @@ pub trait CustomDecoder {
 }
 
 #[derive(Default)]
-pub struct SharedType<T>(RefCell<Option<Rc<T>>>);
+pub struct SharedType<T>(RefCell<Weak<T>>);
 
 impl<T> Clone for SharedType<T> {
     fn clone(&self) -> Self {
@@ -56,49 +56,45 @@ impl<T> Clone for SharedType<T> {
 // stop recursion while printing
 impl<T> fmt::Debug for SharedType<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &*self.0.borrow() {
-            Some(s) => write!(f, "SharedType(Some({:?}))", Rc::<T>::as_ptr(&s)),
-            None => write!(f, "SharedType(None)")
+        let w = &*self.0.borrow();
+        match w.strong_count() {
+            _ => write!(f, "SharedType(Weak({:?}))", Weak::<T>::as_ptr(&w)),
+            0 => write!(f, "SharedType(Empty)")
         }
     }
 }
 
 impl<T> SharedType<T> {
     pub fn new(rc: Rc<T>) -> Self {
-        Self(RefCell::new(Some(Rc::clone(&rc))))
+        Self(RefCell::new(Rc::downgrade(&rc)))
     }
 
     pub fn empty() -> Self {
-        Self(RefCell::new(None))
+        Self(RefCell::new(Weak::new()))
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.borrow().is_none()
+        self.0.borrow().strong_count() == 0
     }
 
     pub fn clone(&self) -> Self {
-        if let Some(rc) = &*self.0.borrow() {
-            Self(RefCell::new(Some(Rc::clone(&rc))))
-        } else {
-            panic!("empty clone")
-        }
+        Self(RefCell::new(Weak::clone(&*self.0.borrow())))
     }
 
     pub fn get(&self) -> KResult<Rc<T>> {
-        if let Some(rc) = &*self.0.borrow() {
-            Ok(rc.clone())
-        } else {
-            // Root is always present
-            Err(KError::MissingParent)
-        }
+        let rc = &*self.0.borrow();
+        rc.upgrade().ok_or(KError::MissingParent)
     }
 
-    pub fn get_value(&self) -> &RefCell<Option<Rc<T>>> {
+    pub fn get_value(&self) -> &RefCell<Weak<T>> {
         &self.0
     }
 
     pub fn set(&self, rc: KResult<Rc<T>>) {
-        *self.0.borrow_mut() = rc.ok();
+        *self.0.borrow_mut() = match rc.ok() {
+            Some(v) => Rc::downgrade(&v),
+            None => Weak::new()
+        }
     }
 }
 
