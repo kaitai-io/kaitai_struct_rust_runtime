@@ -98,21 +98,21 @@ impl<T> SharedType<T> {
     }
 }
 
-pub trait KStruct<'r, 's: 'r>: Default {
-    type Root: KStruct<'r, 's>  + 'static;
-    type Parent: KStruct<'r, 's>  + 'static;
+pub trait KStruct: Default {
+    type Root: KStruct;
+    type Parent: KStruct;
 
     /// Parse this struct (and any children) from the supplied stream
     fn read<S: KStream>(
         self_rc: &Rc<Self>,
-        _io: &'s S,
+        _io: &S,
         _root: SharedType<Self::Root>,
         _parent: SharedType<Self::Parent>,
     ) -> KResult<()>;
 
     /// helper function to read struct
-    fn read_into<S: KStream, T: KStruct<'r, 's> + Default + Any>(
-        _io: &'s S,
+    fn read_into<S: KStream, T: KStruct + Default + Any>(
+        _io: &S,
         _root: Option<SharedType<T::Root>>,
         _parent: Option<SharedType<T::Parent>>,
     ) -> KResult<Rc<T>> {
@@ -124,8 +124,8 @@ pub trait KStruct<'r, 's: 'r>: Default {
     }
 
     /// helper function to special initialize and read struct
-    fn read_into_with_init<S: KStream, T: KStruct<'r, 's> + Default + Any>(
-        _io: &'s S,
+    fn read_into_with_init<S: KStream, T: KStruct + Default + Any>(
+        _io: &S,
         _root: Option<SharedType<T::Root>>,
         _parent: Option<SharedType<T::Parent>>,
         init: &dyn Fn(&mut T) -> KResult<()>,
@@ -140,7 +140,7 @@ pub trait KStruct<'r, 's: 'r>: Default {
     }
 
     fn downcast<T, U>(opt_rc: Option<SharedType<U>>, t: Rc<T>, panic: bool) -> SharedType<U>
-        where   T: KStruct<'r, 's> + Default + Any,
+        where   T: KStruct + Default + Any,
                 U:'static
     {
         if let Some(rc) = opt_rc {
@@ -169,13 +169,13 @@ pub trait KStruct<'r, 's: 'r>: Default {
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct KStructUnit;
 
-impl<'r, 's: 'r> KStruct<'r, 's> for KStructUnit {
+impl KStruct for KStructUnit {
     type Root = KStructUnit;
     type Parent = KStructUnit;
 
     fn read<S: KStream>(
         _self_rc: &Rc<Self>,
-        _io: &'s S,
+        _io: &S,
         _root: SharedType<Self::Root>,
         _parent: SharedType<Self::Parent>,
     ) -> KResult<()> {
