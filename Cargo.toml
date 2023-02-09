@@ -1,6 +1,6 @@
 [package]
 name = "kaitai"
-version = "0.2"
+version = "0.2.0"
 authors = ["Oleg Dolgov <Oleg.Dolgov@gmail.com>", "Vitaly Reshetyuk <vitaly.askz.maknii@gmail.com>"]
 edition = "2018"
 
