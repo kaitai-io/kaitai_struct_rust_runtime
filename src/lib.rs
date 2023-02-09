@@ -81,20 +81,87 @@ impl<T> SharedType<T> {
         Self(RefCell::new(Weak::clone(&*self.0.borrow())))
     }
 
-    pub fn get(&self) -> KResult<Rc<T>> {
-        let rc = &*self.0.borrow();
-        rc.upgrade().ok_or(KError::MissingParent)
+    pub fn get(&self) -> KResult<OptRc<T>> {
+        match self.0.borrow().upgrade() {
+            Some(rc) => Ok(OptRc::from(rc)),
+            None => Err(KError::MissingParent)
+        }
     }
 
     pub fn get_value(&self) -> &RefCell<Weak<T>> {
         &self.0
     }
 
-    pub fn set(&self, rc: KResult<Rc<T>>) {
+    pub fn set(&self, rc: KResult<OptRc<T>>) {
         *self.0.borrow_mut() = match rc.ok() {
-            Some(v) => Rc::downgrade(&v),
+            Some(v) => Rc::downgrade(&v.get()),
             None => Weak::new()
         }
+    }
+}
+
+// we use own type OptRc<> instead of Rc<> only for one reason:
+// by default to not create default value of type T (instead contain Option(None))
+// (T could have cyclic-types inside, as a result we got stack overflow)
+#[derive(Debug)]
+pub struct OptRc<T>(Option<Rc<T>>);
+
+impl<T> OptRc<T> {
+    pub fn new(orc: &Option<Rc<T>>) -> Self {
+        match orc {
+            Some(rc) => OptRc::from(rc.clone()),
+            None => OptRc::default()
+        }
+    }
+
+    pub fn get(&self) -> Rc<T> {
+        self.0.as_ref().unwrap().clone()
+    }
+
+    pub fn get_value(&self) -> &Option<Rc<T>> {
+        &self.0
+    }
+
+    pub fn is_none(&self) -> bool {
+        self.0.is_none()
+    }
+
+    pub fn get_mut(&mut self) -> &mut Rc<T> {
+        self.0.as_mut().unwrap()
+    }
+}
+
+impl<T> Default for OptRc<T> {
+    #[inline]
+    fn default() -> Self {
+        OptRc(None)
+    }
+}
+
+impl<T> Clone for OptRc<T> {
+    fn clone(&self) -> Self {
+        OptRc(self.0.clone())
+    }
+}
+
+impl<T> From<Rc<T>> for OptRc<T> {
+    fn from(v: Rc<T>) -> Self {
+        OptRc(Some(v.clone()))
+    }
+}
+
+impl<T> From<T> for OptRc<T> {
+    fn from(v: T) -> Self {
+        OptRc(Some(v.into()))
+    }
+}
+
+impl<T> Deref for OptRc<T> {
+    type Target = T;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().unwrap()
     }
 }
 
@@ -104,7 +171,7 @@ pub trait KStruct: Default {
 
     /// Parse this struct (and any children) from the supplied stream
     fn read<S: KStream>(
-        self_rc: &Rc<Self>,
+        self_rc: &OptRc<Self>,
         _io: &S,
         _root: SharedType<Self::Root>,
         _parent: SharedType<Self::Parent>,
@@ -115,12 +182,12 @@ pub trait KStruct: Default {
         _io: &S,
         _root: Option<SharedType<T::Root>>,
         _parent: Option<SharedType<T::Parent>>,
-    ) -> KResult<Rc<T>> {
-        let t = Rc::new(T::default());
+    ) -> KResult<OptRc<T>> {
+        let t = OptRc::from(T::default());
         let root = Self::downcast(_root, t.clone(), true);
         let parent = Self::downcast(_parent, t.clone(), false);
         T::read(&t, _io, root, parent)?;
-        Ok(t)
+        Ok(t.into())
     }
 
     /// helper function to special initialize and read struct
@@ -129,24 +196,24 @@ pub trait KStruct: Default {
         _root: Option<SharedType<T::Root>>,
         _parent: Option<SharedType<T::Parent>>,
         init: &dyn Fn(&mut T) -> KResult<()>,
-    ) -> KResult<Rc<T>> {
-        let mut t = Rc::new(T::default());
-        init(Rc::get_mut(&mut t).unwrap())?;
+    ) -> KResult<OptRc<T>> {
+        let mut t = OptRc::from(T::default());
+        init(Rc::get_mut(t.get_mut()).unwrap())?;
 
         let root = Self::downcast(_root, t.clone(), true);
         let parent = Self::downcast(_parent, t.clone(), false);
         T::read(&t, _io, root, parent)?;
-        Ok(t)
+        Ok(t.into())
     }
 
-    fn downcast<T, U>(opt_rc: Option<SharedType<U>>, t: Rc<T>, panic: bool) -> SharedType<U>
+    fn downcast<T, U>(opt_rc: Option<SharedType<U>>, t: OptRc<T>, panic: bool) -> SharedType<U>
         where   T: KStruct + Default + Any,
                 U:'static
     {
         if let Some(rc) = opt_rc {
             rc
         } else {
-            let t_any = &t as &dyn Any;
+            let t_any = &t.get() as &dyn Any;
             //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
             match t_any.downcast_ref::<Rc<U>>() {
                 Some(as_result) => {
@@ -174,7 +241,7 @@ impl KStruct for KStructUnit {
     type Parent = KStructUnit;
 
     fn read<S: KStream>(
-        _self_rc: &Rc<Self>,
+        _self_rc: &OptRc<Self>,
         _io: &S,
         _root: SharedType<Self::Root>,
         _parent: SharedType<Self::Parent>,
