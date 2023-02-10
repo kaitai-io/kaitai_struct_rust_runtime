@@ -1,4 +1,3 @@
-#![feature(type_name_of_val)]
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
@@ -7,7 +6,7 @@ use std::{  {rc::{Rc, Weak},
             cell::RefCell, string::FromUtf16Error},
             io::Read,
             ops::{Deref, DerefMut},
-            any::{Any, type_name_of_val, type_name}, 
+            any::{Any, type_name},
             borrow::Borrow,
             fmt,
         };
@@ -221,7 +220,10 @@ pub trait KStruct: Default {
                 }
                 None => {
                     if (panic) {
-                        panic!("`{}` is not a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
+                        #[cfg(feature = "type_name_of_val")]
+                        panic!("`{}` is not a '{}' type", std::any::type_name_of_val(&t), type_name::<Rc<U>>());
+                        #[cfg(not(feature = "type_name_of_val"))]
+                        panic!("`{:p}` is not a '{}' type", &t, type_name::<Rc<U>>());
                     }
                     SharedType::<U>::empty()
                 }
