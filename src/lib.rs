@@ -1,17 +1,21 @@
 #![allow(unused)]
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use unicode_segmentation::UnicodeSegmentation;
-use std::{  {rc::{Rc, Weak}, 
-            cell::RefCell, string::FromUtf16Error},
-            io::Read,
-            ops::{Deref, DerefMut},
-            any::{Any, type_name},
-            borrow::Borrow,
-            fmt,
-        };
 use flate2::read::ZlibDecoder;
 use once_cell::unsync::OnceCell;
+use std::{
+    any::{type_name, Any},
+    borrow::Borrow,
+    fmt,
+    io::Read,
+    ops::{Deref, DerefMut},
+    {
+        cell::RefCell,
+        rc::{Rc, Weak},
+        string::FromUtf16Error,
+    },
+};
+use unicode_segmentation::UnicodeSegmentation;
 
 pub mod pt;
 
@@ -33,7 +37,7 @@ pub enum KError {
     ValidationNotEqual(String),
     UnknownVariant(i64),
     EncounteredEOF,
-    IoError{ desc: String },
+    IoError { desc: String },
     CastError,
     UndecidedEndiannessError(String),
 }
@@ -58,7 +62,7 @@ impl<T> fmt::Debug for SharedType<T> {
         let w = &*self.0.borrow();
         match w.strong_count() {
             _ => write!(f, "SharedType(Weak({:?}))", Weak::<T>::as_ptr(&w)),
-            0 => write!(f, "SharedType(Empty)")
+            0 => write!(f, "SharedType(Empty)"),
         }
     }
 }
@@ -83,7 +87,7 @@ impl<T> SharedType<T> {
     pub fn get(&self) -> KResult<OptRc<T>> {
         match self.0.borrow().upgrade() {
             Some(rc) => Ok(OptRc::from(rc)),
-            None => Err(KError::MissingParent)
+            None => Err(KError::MissingParent),
         }
     }
 
@@ -94,7 +98,7 @@ impl<T> SharedType<T> {
     pub fn set(&self, rc: KResult<OptRc<T>>) {
         *self.0.borrow_mut() = match rc.ok() {
             Some(v) => Rc::downgrade(&v.get()),
-            None => Weak::new()
+            None => Weak::new(),
         }
     }
 }
@@ -109,7 +113,7 @@ impl<T> OptRc<T> {
     pub fn new(orc: &Option<Rc<T>>) -> Self {
         match orc {
             Some(rc) => OptRc::from(rc.clone()),
-            None => OptRc::default()
+            None => OptRc::default(),
         }
     }
 
@@ -206,8 +210,9 @@ pub trait KStruct: Default {
     }
 
     fn downcast<T, U>(opt_rc: Option<SharedType<U>>, t: OptRc<T>, panic: bool) -> SharedType<U>
-        where   T: KStruct + Default + Any,
-                U:'static
+    where
+        T: KStruct + Default + Any,
+        U: 'static,
     {
         if let Some(rc) = opt_rc {
             rc
@@ -215,13 +220,15 @@ pub trait KStruct: Default {
             let t_any = &t.get() as &dyn Any;
             //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
             match t_any.downcast_ref::<Rc<U>>() {
-                Some(as_result) => {
-                    SharedType::<U>::new(Rc::clone(as_result))
-                }
+                Some(as_result) => SharedType::<U>::new(Rc::clone(as_result)),
                 None => {
                     if (panic) {
                         #[cfg(feature = "type_name_of_val")]
-                        panic!("`{}` is not a '{}' type", std::any::type_name_of_val(&t), type_name::<Rc<U>>());
+                        panic!(
+                            "`{}` is not a '{}' type",
+                            std::any::type_name_of_val(&t),
+                            type_name::<Rc<U>>()
+                        );
                         #[cfg(not(feature = "type_name_of_val"))]
                         panic!("`{:p}` is not a '{}' type", &t, type_name::<Rc<U>>());
                     }
@@ -256,7 +263,9 @@ use std::{fs, path::Path};
 
 impl From<std::io::Error> for KError {
     fn from(err: std::io::Error) -> Self {
-        Self::IoError{ desc: err.to_string() }            
+        Self::IoError {
+            desc: err.to_string(),
+        }
     }
 }
 
@@ -346,7 +355,9 @@ pub trait KStream {
             // Return what the actual contents were; our caller provided us
             // what was expected so we don't need to return it, and it makes
             // the lifetimes way easier
-            Err(KError::UnexpectedContents { actual: actual.to_vec() })
+            Err(KError::UnexpectedContents {
+                actual: actual.to_vec(),
+            })
         }
     }
 
@@ -480,7 +491,7 @@ impl KStream for BytesReader {
     }
 
     fn read_bits_int_be(&self, n: usize) -> KResult<u64> {
-        let mut res : u64 = 0;
+        let mut res: u64 = 0;
 
         if n > 64 {
             return Err(KError::ReadBitsTooLarge { requested: n });
@@ -515,7 +526,7 @@ impl KStream for BytesReader {
     }
 
     fn read_bits_int_le(&self, n: usize) -> KResult<u64> {
-        let mut res : u64 = 0;
+        let mut res: u64 = 0;
 
         if n > 64 {
             return Err(KError::ReadBitsTooLarge { requested: n });
@@ -543,7 +554,6 @@ impl KStream for BytesReader {
             let mut inner = self.state.borrow_mut();
             res = inner.bits;
             inner.bits >>= n;
-
         }
 
         let mut inner = self.state.borrow_mut();
@@ -575,8 +585,13 @@ impl KStream for BytesReader {
         Ok(&self.bytes[cur_pos..self.size()])
     }
 
-    fn read_bytes_term(&self, term: u8, include: bool, consume: bool, eos_error: bool)
-        -> KResult<&[u8]> {
+    fn read_bytes_term(
+        &self,
+        term: u8,
+        include: bool,
+        consume: bool,
+        eos_error: bool,
+    ) -> KResult<&[u8]> {
         let pos = self.state.borrow().pos;
         let mut new_len = pos;
         while new_len < self.bytes.len() && self.bytes[new_len] != term {
@@ -597,21 +612,20 @@ impl KStream for BytesReader {
     }
 }
 
-use encoding::{Encoding, DecoderTrap};
 use encoding::label::encoding_from_whatwg_label;
+use encoding::{DecoderTrap, Encoding};
 
-pub fn decode_string<'a>(
-    bytes: &'a [u8],
-    label: &'a str
-) -> KResult<String> {
-
+pub fn decode_string<'a>(bytes: &'a [u8], label: &'a str) -> KResult<String> {
     if let Some(enc) = encoding_from_whatwg_label(label) {
-        return enc.decode(bytes, DecoderTrap::Replace).map_err(|e| KError::Encoding { desc: e.to_string() });
+        return enc
+            .decode(bytes, DecoderTrap::Replace)
+            .map_err(|e| KError::Encoding {
+                desc: e.to_string(),
+            });
     }
 
     let enc = label.to_lowercase();
-    if enc == "cp437"
-    {
+    if enc == "cp437" {
         use std::io::BufReader;
         let reader = BufReader::new(bytes);
         let mut buffer = reader.bytes();
@@ -619,7 +633,9 @@ pub fn decode_string<'a>(
         return Ok(r.consume(bytes.len()));
     }
 
-    Err(KError::Encoding{ desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label)})
+    Err(KError::Encoding {
+        desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label),
+    })
 }
 
 pub fn reverse_string<S: AsRef<str>>(s: S) -> KResult<String> {
@@ -754,14 +770,38 @@ mod tests {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let reader = BytesReader::from(b);
 
-        assert_eq!(reader.read_bytes_term(3, false, false, false).unwrap()[..], [1, 2]);
-        assert_eq!(reader.read_bytes_term(3, true, false, true).unwrap()[..], [3]);
-        assert_eq!(reader.read_bytes_term(3, false, true, true).unwrap()[..], []);
-        assert_eq!(reader.read_bytes_term(5, true, true, true).unwrap()[..], [4, 5]);
-        assert_eq!(reader.read_bytes_term(8, false, false, true).unwrap()[..], [6, 7]);
-        assert_eq!(reader.read_bytes_term(11, false, true, true).unwrap_err(), KError::EncounteredEOF);
-        assert_eq!(reader.read_bytes_term(9, true, true, false).unwrap()[..], [8, 9]);
-        assert_eq!(reader.read_bytes_term(10, true, false, false).unwrap()[..], [10]);
+        assert_eq!(
+            reader.read_bytes_term(3, false, false, false).unwrap()[..],
+            [1, 2]
+        );
+        assert_eq!(
+            reader.read_bytes_term(3, true, false, true).unwrap()[..],
+            [3]
+        );
+        assert_eq!(
+            reader.read_bytes_term(3, false, true, true).unwrap()[..],
+            []
+        );
+        assert_eq!(
+            reader.read_bytes_term(5, true, true, true).unwrap()[..],
+            [4, 5]
+        );
+        assert_eq!(
+            reader.read_bytes_term(8, false, false, true).unwrap()[..],
+            [6, 7]
+        );
+        assert_eq!(
+            reader.read_bytes_term(11, false, true, true).unwrap_err(),
+            KError::EncounteredEOF
+        );
+        assert_eq!(
+            reader.read_bytes_term(9, true, true, false).unwrap()[..],
+            [8, 9]
+        );
+        assert_eq!(
+            reader.read_bytes_term(10, true, false, false).unwrap()[..],
+            [10]
+        );
     }
 
     #[test]
@@ -780,7 +820,7 @@ mod tests {
         let b = vec![0x66, 0x6F];
         let reader = BytesReader::from(b);
         fn as_stream_trait<S: KStream>(_io: &S) {
-            let key : Vec<u8> = vec![3, 3];
+            let key: Vec<u8> = vec![3, 3];
             let res = S::process_xor_many(&_io.read_bytes(2).unwrap()[..], &key);
             assert_eq!(vec![0x65, 0x6C], res);
         }
@@ -793,7 +833,7 @@ mod tests {
         let reader = BytesReader::from(b);
         fn as_stream_trait<S: KStream>(_io: &S) {
             let res = S::process_rotate_left(&_io.read_bytes(2).unwrap()[..], 3);
-            let expected : Vec<u8> = vec![0x48, 0x65];
+            let expected: Vec<u8> = vec![0x48, 0x65];
             assert_eq!(expected, res);
         }
         as_stream_trait(&reader);
@@ -810,7 +850,9 @@ mod tests {
         assert_eq!(reader.read_bytes(4).unwrap()[..], [2, 3, 4, 5]);
         reader.seek(pos).unwrap();
         assert_eq!(reader.read_bytes(4).unwrap()[..], [5, 6, 7, 8]);
-        assert_eq!(reader.seek(9).unwrap_err(),
-            KError::Incomplete(Needed::Size(1)));
+        assert_eq!(
+            reader.seek(9).unwrap_err(),
+            KError::Incomplete(Needed::Size(1))
+        );
     }
 }
