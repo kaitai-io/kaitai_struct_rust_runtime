@@ -52,7 +52,7 @@ pub struct SharedType<T>(RefCell<Weak<T>>);
 
 impl<T> Clone for SharedType<T> {
     fn clone(&self) -> Self {
-        self.clone()
+        Self(RefCell::new(Weak::clone(&*self.0.borrow())))
     }
 }
 
@@ -61,7 +61,7 @@ impl<T> fmt::Debug for SharedType<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let w = &*self.0.borrow();
         match w.strong_count() {
-            _ => write!(f, "SharedType(Weak({:?}))", Weak::<T>::as_ptr(&w)),
+            _ => write!(f, "SharedType(Weak({:?}))", Weak::<T>::as_ptr(w)),
             0 => write!(f, "SharedType(Empty)"),
         }
     }
@@ -78,10 +78,6 @@ impl<T> SharedType<T> {
 
     pub fn is_empty(&self) -> bool {
         self.0.borrow().strong_count() == 0
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(RefCell::new(Weak::clone(&*self.0.borrow())))
     }
 
     pub fn get(&self) -> KResult<OptRc<T>> {
@@ -149,7 +145,7 @@ impl<T> Clone for OptRc<T> {
 
 impl<T> From<Rc<T>> for OptRc<T> {
     fn from(v: Rc<T>) -> Self {
-        OptRc(Some(v.clone()))
+        OptRc(Some(v))
     }
 }
 
@@ -190,7 +186,7 @@ pub trait KStruct: Default {
         let root = Self::downcast(_root, t.clone(), true);
         let parent = Self::downcast(_parent, t.clone(), false);
         T::read(&t, _io, root, parent)?;
-        Ok(t.into())
+        Ok(t)
     }
 
     /// helper function to special initialize and read struct
@@ -206,7 +202,7 @@ pub trait KStruct: Default {
         let root = Self::downcast(_root, t.clone(), true);
         let parent = Self::downcast(_parent, t.clone(), false);
         T::read(&t, _io, root, parent)?;
-        Ok(t.into())
+        Ok(t)
     }
 
     fn downcast<T, U>(opt_rc: Option<SharedType<U>>, t: OptRc<T>, panic: bool) -> SharedType<U>
@@ -299,7 +295,7 @@ pub trait KStream {
     }
 
     fn read_u1(&self) -> KResult<u8> {
-        Ok(self.read_bytes(1)?[0] as u8)
+        Ok(self.read_bytes(1)?[0])
     }
     fn read_u2be(&self) -> KResult<u16> {
         Ok(BigEndian::read_u16(self.read_bytes(2)?))
@@ -389,22 +385,22 @@ pub trait KStream {
     fn process_xor_one(bytes: &[u8], key: u8) -> Vec<u8> {
         let mut res = bytes.to_vec();
         for i in res.iter_mut() {
-            *i = *i ^ key;
+            *i ^= key;
         }
-        return res;
+        res
     }
 
     fn process_xor_many(bytes: &[u8], key: &[u8]) -> Vec<u8> {
         let mut res = bytes.to_vec();
         let mut ki = 0;
         for i in res.iter_mut() {
-            *i = *i ^ key[ki];
-            ki = ki + 1;
+            *i ^= key[ki];
+            ki += 1;
             if (ki >= key.len()) {
                 ki = 0;
             }
         }
-        return res;
+        res
     }
 
     fn process_rotate_left(bytes: &[u8], amount: u8) -> Vec<u8> {
@@ -412,7 +408,7 @@ pub trait KStream {
         for i in res.iter_mut() {
             *i = (*i << amount) | (*i >> (8 - amount));
         }
-        return res;
+        res
     }
 
     fn process_zlib(bytes: &[u8]) -> Vec<u8> {
@@ -542,12 +538,11 @@ impl KStream for BytesReader {
                 res |= (buf[i as usize] as u64) << (i * 8);
             }
             let mut inner = self.state.borrow_mut();
-            let new_bits;
-            if bits_needed < 64 {
-                new_bits = res >> bits_needed;
+            let new_bits = if bits_needed < 64 {
+                res >> bits_needed
             } else {
-                new_bits = 0;
-            }
+                0
+            };
             res = res << inner.bits_left | inner.bits;
             inner.bits = new_bits;
         } else {
@@ -809,7 +804,7 @@ mod tests {
         let b = vec![0x66];
         let reader = BytesReader::from(b);
         fn as_stream_trait<S: KStream>(_io: &S) {
-            let res = S::process_xor_one(&_io.read_bytes(1).unwrap()[..], 3);
+            let res = S::process_xor_one(_io.read_bytes(1).unwrap(), 3);
             assert_eq!(0x65, res[0]);
         }
         as_stream_trait(&reader);
@@ -821,7 +816,7 @@ mod tests {
         let reader = BytesReader::from(b);
         fn as_stream_trait<S: KStream>(_io: &S) {
             let key: Vec<u8> = vec![3, 3];
-            let res = S::process_xor_many(&_io.read_bytes(2).unwrap()[..], &key);
+            let res = S::process_xor_many(_io.read_bytes(2).unwrap(), &key);
             assert_eq!(vec![0x65, 0x6C], res);
         }
         as_stream_trait(&reader);
@@ -832,7 +827,7 @@ mod tests {
         let b = vec![0x09, 0xAC];
         let reader = BytesReader::from(b);
         fn as_stream_trait<S: KStream>(_io: &S) {
-            let res = S::process_rotate_left(&_io.read_bytes(2).unwrap()[..], 3);
+            let res = S::process_rotate_left(_io.read_bytes(2).unwrap(), 3);
             let expected: Vec<u8> = vec![0x48, 0x65];
             assert_eq!(expected, res);
         }

@@ -64,13 +64,13 @@ impl<T: Default> ParamType<T> {
 
 impl<T: Default> Deref for ParamType<T> {
     type Target = Option<T>;
-    fn deref<'a>(&'a self) -> &'a Self::Target {
+    fn deref(&self) -> &Self::Target {
         unsafe { &*self.0.get() }
     }
 }
 
 impl<T: Default> DerefMut for ParamType<T> {
-    fn deref_mut<'a>(&'a mut self) -> &'a mut Self::Target {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.get_mut()
     }
 }
