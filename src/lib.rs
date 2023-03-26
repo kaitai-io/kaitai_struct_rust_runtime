@@ -3,14 +3,15 @@
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use flate2::read::ZlibDecoder;
 use once_cell::unsync::OnceCell;
+
 use std::{
     any::{type_name, Any},
     borrow::Borrow,
     fmt,
-    io::Read,
+    io::{Read, Seek},
     ops::{Deref, DerefMut},
     {
-        cell::RefCell,
+        cell::{Ref, RefCell, RefMut},
         rc::{Rc, Weak},
         string::FromUtf16Error,
     },
@@ -265,219 +266,89 @@ impl From<std::io::Error> for KError {
 
 pub trait KStream {
     fn clone(&self) -> BytesReader;
-    fn is_eof(&self) -> bool;
-    fn seek(&self, position: usize) -> KResult<()>;
-    fn pos(&self) -> usize;
     fn size(&self) -> usize;
 
-    fn read_s1(&self) -> KResult<i8> {
-        Ok(self.read_bytes(1)?[0] as i8)
-    }
-    fn read_s2be(&self) -> KResult<i16> {
-        Ok(BigEndian::read_i16(self.read_bytes(2)?))
-    }
-    fn read_s4be(&self) -> KResult<i32> {
-        Ok(BigEndian::read_i32(self.read_bytes(4)?))
-    }
-    fn read_s8be(&self) -> KResult<i64> {
-        Ok(BigEndian::read_i64(self.read_bytes(8)?))
-    }
-    fn read_s2le(&self) -> KResult<i16> {
-        Ok(LittleEndian::read_i16(self.read_bytes(2)?))
-    }
-    fn read_s4le(&self) -> KResult<i32> {
-        Ok(LittleEndian::read_i32(self.read_bytes(4)?))
-    }
-    fn read_s8le(&self) -> KResult<i64> {
-        Ok(LittleEndian::read_i64(self.read_bytes(8)?))
-    }
-
-    fn read_u1(&self) -> KResult<u8> {
-        Ok(self.read_bytes(1)?[0])
-    }
-    fn read_u2be(&self) -> KResult<u16> {
-        Ok(BigEndian::read_u16(self.read_bytes(2)?))
-    }
-    fn read_u4be(&self) -> KResult<u32> {
-        Ok(BigEndian::read_u32(self.read_bytes(4)?))
-    }
-    fn read_u8be(&self) -> KResult<u64> {
-        Ok(BigEndian::read_u64(self.read_bytes(8)?))
-    }
-    fn read_u2le(&self) -> KResult<u16> {
-        Ok(LittleEndian::read_u16(self.read_bytes(2)?))
-    }
-    fn read_u4le(&self) -> KResult<u32> {
-        Ok(LittleEndian::read_u32(self.read_bytes(4)?))
-    }
-    fn read_u8le(&self) -> KResult<u64> {
-        Ok(LittleEndian::read_u64(self.read_bytes(8)?))
-    }
-
-    fn read_f4be(&self) -> KResult<f32> {
-        Ok(BigEndian::read_f32(self.read_bytes(4)?))
-    }
-    fn read_f8be(&self) -> KResult<f64> {
-        Ok(BigEndian::read_f64(self.read_bytes(8)?))
-    }
-    fn read_f4le(&self) -> KResult<f32> {
-        Ok(LittleEndian::read_f32(self.read_bytes(4)?))
-    }
-    fn read_f8le(&self) -> KResult<f64> {
-        Ok(LittleEndian::read_f64(self.read_bytes(8)?))
-    }
-
-    fn align_to_byte(&self) -> KResult<()>;
-    fn read_bits_int_be(&self, n: usize) -> KResult<u64>;
-    fn read_bits_int_le(&self, n: usize) -> KResult<u64>;
-
-    fn read_bytes(&self, len: usize) -> KResult<&[u8]>;
-    fn read_bytes_full(&self) -> KResult<&[u8]>;
-    fn read_bytes_term(
-        &self,
-        term: u8,
-        include: bool,
-        consume: bool,
-        eos_error: bool,
-    ) -> KResult<&[u8]>;
-
-    fn ensure_fixed_contents(&self, expected: &[u8]) -> KResult<&[u8]> {
-        let actual = self.read_bytes(expected.len())?;
-        if actual == expected {
-            Ok(actual)
-        } else {
-            // Return what the actual contents were; our caller provided us
-            // what was expected so we don't need to return it, and it makes
-            // the lifetimes way easier
-            Err(KError::UnexpectedContents {
-                actual: actual.to_vec(),
-            })
-        }
-    }
-
-    /// Return a byte array that is sized to exclude all trailing instances of the
-    /// padding character.
-    fn bytes_strip_right<'a>(&'a self, bytes: &'a [u8], pad: u8) -> &'a [u8] {
-        let mut new_len = bytes.len();
-        while new_len > 0 && bytes[new_len - 1] == pad {
-            new_len -= 1;
-        }
-        &bytes[..new_len]
-    }
-
-    /// Return a byte array that contains all bytes up until the
-    /// termination byte. Can optionally include the termination byte as well.
-    fn bytes_terminate<'a>(&'a self, bytes: &'a [u8], term: u8, include_term: bool) -> &'a [u8] {
-        let mut new_len = 0;
-        while bytes[new_len] != term && new_len < bytes.len() {
-            new_len += 1;
-        }
-
-        if include_term && new_len < bytes.len() {
-            new_len += 1;
-        }
-
-        &bytes[..new_len]
-    }
-
-    fn process_xor_one(bytes: &[u8], key: u8) -> Vec<u8> {
-        let mut res = bytes.to_vec();
-        for i in res.iter_mut() {
-            *i ^= key;
-        }
-        res
-    }
-
-    fn process_xor_many(bytes: &[u8], key: &[u8]) -> Vec<u8> {
-        let mut res = bytes.to_vec();
-        let mut ki = 0;
-        for i in res.iter_mut() {
-            *i ^= key[ki];
-            ki += 1;
-            if (ki >= key.len()) {
-                ki = 0;
-            }
-        }
-        res
-    }
-
-    fn process_rotate_left(bytes: &[u8], amount: u8) -> Vec<u8> {
-        let mut res = bytes.to_vec();
-        for i in res.iter_mut() {
-            *i = (*i << amount) | (*i >> (8 - amount));
-        }
-        res
-    }
-
-    fn process_zlib(bytes: &[u8]) -> Vec<u8> {
-        let mut dec = ZlibDecoder::new(bytes);
-        let mut dec_bytes = Vec::new();
-        dec.read_to_end(&mut dec_bytes);
-        dec_bytes
-    }
-}
-
-#[derive(Default, Debug, Clone)]
-struct BytesReaderState {
-    pos: usize,
-    bits: u64,
-    bits_left: i64,
-}
-
-#[derive(Default, Debug, Clone)]
-pub struct BytesReader {
-    state: RefCell<BytesReaderState>,
-    bytes: bytes::Bytes,
-}
-
-impl From<Vec<u8>> for BytesReader {
-    fn from(vec: Vec<u8>) -> BytesReader {
-        BytesReader {
-            state: RefCell::new(BytesReaderState::default()),
-            bytes: bytes::Bytes::from(vec),
-        }
-    }
-}
-
-impl From<&'static [u8]> for BytesReader {
-    fn from(slice: &'static [u8]) -> BytesReader {
-        BytesReader {
-            state: RefCell::new(BytesReaderState::default()),
-            bytes: bytes::Bytes::from_static(slice),
-        }
-    }
-}
-
-impl KStream for BytesReader {
-    fn clone(&self) -> BytesReader {
-        Clone::clone(self)
-    }
-
     fn is_eof(&self) -> bool {
-        if self.state.borrow().bits_left > 0 {
+        if self.get_state().bits_left > 0 {
             return false;
         }
         self.pos() == self.size()
     }
 
     fn seek(&self, position: usize) -> KResult<()> {
-        if position > self.bytes.len() {
+        if position > self.size() {
             return Err(KError::Incomplete(Needed::Size(position - self.pos())));
         }
-        self.state.borrow_mut().pos = position;
+        self.get_state_mut().pos = position;
         Ok(())
     }
 
     fn pos(&self) -> usize {
-        self.state.borrow().pos
+        self.get_state().pos
     }
 
-    fn size(&self) -> usize {
-        self.bytes.len()
+    fn read_s1(&self) -> KResult<i8> {
+        Ok(self.read_bytes(1)?[0] as i8)
     }
+    fn read_s2be(&self) -> KResult<i16> {
+        Ok(BigEndian::read_i16(&self.read_bytes(2)?))
+    }
+    fn read_s4be(&self) -> KResult<i32> {
+        Ok(BigEndian::read_i32(&self.read_bytes(4)?))
+    }
+    fn read_s8be(&self) -> KResult<i64> {
+        Ok(BigEndian::read_i64(&self.read_bytes(8)?))
+    }
+    fn read_s2le(&self) -> KResult<i16> {
+        Ok(LittleEndian::read_i16(&self.read_bytes(2)?))
+    }
+    fn read_s4le(&self) -> KResult<i32> {
+        Ok(LittleEndian::read_i32(&self.read_bytes(4)?))
+    }
+    fn read_s8le(&self) -> KResult<i64> {
+        Ok(LittleEndian::read_i64(&self.read_bytes(8)?))
+    }
+
+    fn read_u1(&self) -> KResult<u8> {
+        Ok(self.read_bytes(1)?[0])
+    }
+    fn read_u2be(&self) -> KResult<u16> {
+        Ok(BigEndian::read_u16(&self.read_bytes(2)?))
+    }
+    fn read_u4be(&self) -> KResult<u32> {
+        Ok(BigEndian::read_u32(&self.read_bytes(4)?))
+    }
+    fn read_u8be(&self) -> KResult<u64> {
+        Ok(BigEndian::read_u64(&self.read_bytes(8)?))
+    }
+    fn read_u2le(&self) -> KResult<u16> {
+        Ok(LittleEndian::read_u16(&self.read_bytes(2)?))
+    }
+    fn read_u4le(&self) -> KResult<u32> {
+        Ok(LittleEndian::read_u32(&self.read_bytes(4)?))
+    }
+    fn read_u8le(&self) -> KResult<u64> {
+        Ok(LittleEndian::read_u64(&self.read_bytes(8)?))
+    }
+
+    fn read_f4be(&self) -> KResult<f32> {
+        Ok(BigEndian::read_f32(&self.read_bytes(4)?))
+    }
+    fn read_f8be(&self) -> KResult<f64> {
+        Ok(BigEndian::read_f64(&self.read_bytes(8)?))
+    }
+    fn read_f4le(&self) -> KResult<f32> {
+        Ok(LittleEndian::read_f32(&self.read_bytes(4)?))
+    }
+    fn read_f8le(&self) -> KResult<f64> {
+        Ok(LittleEndian::read_f64(&self.read_bytes(8)?))
+    }
+
+    fn get_state(&self) -> Ref<ReaderState>;
+    fn get_state_mut(&self) -> RefMut<ReaderState>;
 
     fn align_to_byte(&self) -> KResult<()> {
-        let mut inner = self.state.borrow_mut();
+        let mut inner = self.get_state_mut();
         inner.bits = 0;
         inner.bits_left = 0;
 
@@ -492,16 +363,16 @@ impl KStream for BytesReader {
         }
 
         let n = n as i64;
-        let bits_needed = n - self.state.borrow().bits_left;
-        self.state.borrow_mut().bits_left = -bits_needed & 7;
+        let bits_needed = n - self.get_state().bits_left;
+        self.get_state_mut().bits_left = -bits_needed & 7;
 
         if bits_needed > 0 {
             let bytes_needed = ((bits_needed - 1) / 8) + 1;
             let buf = self.read_bytes(bytes_needed as usize)?;
             for b in buf {
-                res = res << 8 | (*b as u64);
+                res = res << 8 | (b as u64);
             }
-            let mut inner = self.state.borrow_mut();
+            let mut inner = self.get_state_mut();
             let new_bits = res;
             res >>= inner.bits_left;
             if bits_needed < 64 {
@@ -509,10 +380,10 @@ impl KStream for BytesReader {
             }
             inner.bits = new_bits;
         } else {
-            res = self.state.borrow().bits >> -bits_needed;
+            res = self.get_state().bits >> -bits_needed;
         }
 
-        let mut inner = self.state.borrow_mut();
+        let mut inner = self.get_state_mut();
         let mut mask = (1u64 << inner.bits_left) - 1;
         inner.bits &= mask;
 
@@ -527,7 +398,7 @@ impl KStream for BytesReader {
         }
 
         let n = n as i64;
-        let bits_needed = n - self.state.borrow().bits_left;
+        let bits_needed = n - self.get_state().bits_left;
 
         if bits_needed > 0 {
             let bytes_needed = ((bits_needed - 1) / 8) + 1;
@@ -535,7 +406,7 @@ impl KStream for BytesReader {
             for i in 0..bytes_needed {
                 res |= (buf[i as usize] as u64) << (i * 8);
             }
-            let mut inner = self.state.borrow_mut();
+            let mut inner = self.get_state_mut();
             let new_bits = if bits_needed < 64 {
                 res >> bits_needed
             } else {
@@ -544,12 +415,12 @@ impl KStream for BytesReader {
             res = res << inner.bits_left | inner.bits;
             inner.bits = new_bits;
         } else {
-            let mut inner = self.state.borrow_mut();
+            let mut inner = self.get_state_mut();
             res = inner.bits;
             inner.bits >>= n;
         }
 
-        let mut inner = self.state.borrow_mut();
+        let mut inner = self.get_state_mut();
         inner.bits_left = -bits_needed & 7;
 
         if n < 64 {
@@ -560,23 +431,8 @@ impl KStream for BytesReader {
         Ok(res)
     }
 
-    fn read_bytes(&self, len: usize) -> KResult<&[u8]> {
-        let cur_pos = self.state.borrow().pos;
-        if len + cur_pos > self.size() {
-            return Err(KError::Incomplete(Needed::Size(
-                len + cur_pos - self.size(),
-            )));
-        }
-
-        self.state.borrow_mut().pos += len;
-        Ok(&self.bytes[cur_pos..cur_pos + len])
-    }
-
-    fn read_bytes_full(&self) -> KResult<&[u8]> {
-        let cur_pos = self.state.borrow().pos;
-        self.state.borrow_mut().pos = self.size();
-        Ok(&self.bytes[cur_pos..self.size()])
-    }
+    fn read_bytes(&self, len: usize) -> KResult<Vec<u8>>;
+    fn read_bytes_full(&self) -> KResult<Vec<u8>>;
 
     fn read_bytes_term(
         &self,
@@ -584,34 +440,253 @@ impl KStream for BytesReader {
         include: bool,
         consume: bool,
         eos_error: bool,
-    ) -> KResult<&[u8]> {
-        let pos = self.state.borrow().pos;
-        let mut new_len = pos;
-        while new_len < self.bytes.len() && self.bytes[new_len] != term {
-            new_len += 1;
+    ) -> KResult<Vec<u8>> {
+        let mut readed_bytes: Vec<u8> = Vec::new();
+        while self.pos() < self.size() {
+            let bytes = self.read_bytes(1)?;
+            if bytes[0] != term {
+                readed_bytes.push(bytes[0]);
+            } else {
+                // undo last readed byte
+                self.get_state_mut().pos -= 1;
+                break;
+            }
         }
 
-        if new_len == self.bytes.len() {
+        if self.pos() == self.size() {
             if eos_error {
                 return Err(KError::EncounteredEOF);
             }
-            Ok(&self.bytes[pos..])
+            Ok(readed_bytes)
         } else {
             // consume terminator?
-            self.state.borrow_mut().pos = new_len + consume as usize;
+            if consume {
+                self.get_state_mut().pos += 1;
+            }
             // but return or not 'term' symbol depend on 'include' flag
-            Ok(&self.bytes[pos..new_len + include as usize])
+            if include {
+                readed_bytes.push(term);
+            }
+            Ok(readed_bytes)
         }
+    }
+
+    /// Return a byte array that is sized to exclude all trailing instances of the
+    /// padding character.
+    fn bytes_strip_right(bytes: &Vec<u8>, pad: u8) -> Vec<u8> {
+        let mut new_len = bytes.len();
+        while new_len > 0 && bytes[new_len - 1] == pad {
+            new_len -= 1;
+        }
+        bytes[..new_len].to_vec()
+    }
+
+    /// Return a byte array that contains all bytes up until the
+    /// termination byte. Can optionally include the termination byte as well.
+    fn bytes_terminate(bytes: &Vec<u8>, term: u8, include_term: bool) -> Vec<u8> {
+        let mut new_len = 0;
+        while bytes[new_len] != term && new_len < bytes.len() {
+            new_len += 1;
+        }
+
+        if include_term && new_len < bytes.len() {
+            new_len += 1;
+        }
+
+        bytes[..new_len].to_vec()
+    }
+
+    fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        for i in res.iter_mut() {
+            *i ^= key;
+        }
+        res
+    }
+
+    fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        let mut ki = 0;
+        for i in res.iter_mut() {
+            *i ^= key[ki];
+            ki += 1;
+            if (ki >= key.len()) {
+                ki = 0;
+            }
+        }
+        res
+    }
+
+    fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
+        let mut res = bytes.to_vec();
+        for i in res.iter_mut() {
+            *i = (*i << amount) | (*i >> (8 - amount));
+        }
+        res
+    }
+
+    fn process_zlib(bytes: &Vec<u8>) -> Vec<u8> {
+        let mut dec = ZlibDecoder::new(bytes.as_slice());
+        let mut dec_bytes = Vec::new();
+        dec.read_to_end(&mut dec_bytes);
+        dec_bytes
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct ReaderState {
+    pos: usize,
+    bits: u64,
+    bits_left: i64,
+}
+
+trait ReadSeek: Read + Seek {}
+
+impl<T> ReadSeek for T where T: Read + Seek {}
+
+impl fmt::Display for dyn ReadSeek {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ReadSeek")
+    }
+}
+
+impl fmt::Debug for dyn ReadSeek {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ReadSeek")
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct BytesReader {
+    state: RefCell<ReaderState>,
+    // share same "instance" of data beetween all clones
+    // reposition before each read call
+    buf: OptRc<RefCell<Box<dyn ReadSeek>>>,
+    file_size: u64,
+}
+
+impl From<Vec<u8>> for BytesReader {
+    fn from(bytes: Vec<u8>) -> BytesReader {
+        BytesReader::from_buffer(&bytes)
+    }
+}
+
+impl From<&'static [u8]> for BytesReader {
+    fn from(slice: &'static [u8]) -> BytesReader {
+        BytesReader::from_buffer(slice)
+    }
+}
+
+impl BytesReader {
+    pub fn open<T: AsRef<Path>>(filename: T) -> KResult<Self> {
+        let f = std::fs::File::open(filename).map_err(|e| KError::IoError {
+            desc: e.to_string(),
+        })?;
+        let file_size = f.metadata().unwrap().len();
+        let r: Box<dyn ReadSeek> = Box::new(f);
+        Ok(BytesReader {
+            state: RefCell::new(ReaderState::default()),
+            file_size,
+            buf: OptRc::from(RefCell::new(r)),
+        })
+    }
+
+    fn from_buffer(bytes: &[u8]) -> Self {
+        let file_size = bytes.len() as u64;
+        let r: Box<dyn ReadSeek> = Box::new(std::io::Cursor::new(bytes.to_vec()));
+        BytesReader {
+            state: RefCell::new(ReaderState::default()),
+            file_size,
+            buf: OptRc::from(RefCell::new(r)),
+        }
+    }
+
+    // sync stream pos with state.pos
+    fn sync_pos(&self) -> KResult<()> {
+        let cur_pos = self
+            .buf
+            .borrow_mut()
+            .stream_position()
+            .map_err(|e| KError::IoError {
+                desc: e.to_string(),
+            })?;
+        if self.pos() != cur_pos as usize {
+            self.buf
+                .borrow_mut()
+                .seek(SeekFrom::Start(self.pos() as u64))
+                .map_err(|e| KError::IoError {
+                    desc: e.to_string(),
+                })?;
+        }
+        Ok(())
+    }
+}
+
+use std::io::BufRead;
+use std::io::SeekFrom;
+
+impl KStream for BytesReader {
+    fn clone(&self) -> Self {
+        Clone::clone(self)
+    }
+
+    fn get_state(&self) -> Ref<ReaderState> {
+        self.state.borrow()
+    }
+
+    fn get_state_mut(&self) -> RefMut<ReaderState> {
+        self.state.borrow_mut()
+    }
+
+    fn size(&self) -> usize {
+        self.file_size as usize
+    }
+
+    fn read_bytes(&self, len: usize) -> KResult<Vec<u8>> {
+        // handle read beyond end of file
+        if len + self.pos() > self.size() {
+            return Err(KError::Incomplete(Needed::Size(
+                len + self.pos() - self.size(),
+            )));
+        }
+        self.sync_pos()?;
+        // let state = self.state.borrow_mut();
+        // state.buf.resize(len, 0);
+        let mut buf = vec![0; len];
+        let readed = self
+            .buf
+            .borrow_mut()
+            .read(&mut buf[..])
+            .map_err(|e| KError::IoError {
+                desc: e.to_string(),
+            })?;
+        self.get_state_mut().pos += readed;
+        Ok(buf)
+    }
+
+    fn read_bytes_full(&self) -> KResult<Vec<u8>> {
+        self.sync_pos()?;
+        //let state = self.state.borrow_mut();
+        let mut buf = Vec::new();
+        let readed = self
+            .buf
+            .borrow_mut()
+            .read_to_end(&mut buf)
+            .map_err(|e| KError::IoError {
+                desc: e.to_string(),
+            })?;
+        self.get_state_mut().pos += readed;
+        Ok(buf)
     }
 }
 
 use encoding::label::encoding_from_whatwg_label;
 use encoding::{DecoderTrap, Encoding};
 
-pub fn decode_string<'a>(bytes: &'a [u8], label: &'a str) -> KResult<String> {
+pub fn decode_string(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     if let Some(enc) = encoding_from_whatwg_label(label) {
         return enc
-            .decode(bytes, DecoderTrap::Replace)
+            .decode(bytes.as_slice(), DecoderTrap::Replace)
             .map_err(|e| KError::Encoding {
                 desc: e.to_string(),
             });
@@ -620,7 +695,7 @@ pub fn decode_string<'a>(bytes: &'a [u8], label: &'a str) -> KResult<String> {
     let enc = label.to_lowercase();
     if enc == "cp437" {
         use std::io::BufReader;
-        let reader = BufReader::new(bytes);
+        let reader = BufReader::new(bytes.as_slice());
         let mut buffer = reader.bytes();
         let mut r = cp437::Reader::new(&mut buffer);
         return Ok(r.consume(bytes.len()));
@@ -685,7 +760,7 @@ kf_min!(kf64_min, f64);
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::BorrowMut, clone};
+    use std::{borrow::BorrowMut, clone, io::Write};
 
     use super::*;
 
@@ -693,7 +768,7 @@ mod tests {
     fn basic_strip_right() {
         let b = vec![1, 2, 3, 4, 5, 5, 5, 5];
         let reader = BytesReader::from(vec![]);
-        let c = reader.bytes_strip_right(&b[..], 5);
+        let c = BytesReader::bytes_strip_right(&b, 5);
 
         assert_eq!([1, 2, 3, 4], c[..]);
     }
@@ -787,6 +862,8 @@ mod tests {
             reader.read_bytes_term(11, false, true, true).unwrap_err(),
             KError::EncounteredEOF
         );
+        // restore position
+        reader.seek(7);
         assert_eq!(
             reader.read_bytes_term(9, true, true, false).unwrap()[..],
             [8, 9]
@@ -798,44 +875,76 @@ mod tests {
     }
 
     #[test]
-    fn process_xor_one() {
+    fn process_xor_one_test() {
         let b = vec![0x66];
         let reader = BytesReader::from(b);
-        fn as_stream_trait<S: KStream>(_io: &S) {
-            let res = S::process_xor_one(_io.read_bytes(1).unwrap(), 3);
-            assert_eq!(0x65, res[0]);
-        }
-        as_stream_trait(&reader);
+        let res = BytesReader::process_xor_one(&reader.read_bytes(1).unwrap(), 3);
+        assert_eq!(0x65, res[0]);
     }
 
     #[test]
-    fn process_xor_many() {
+    fn process_xor_many_test() {
         let b = vec![0x66, 0x6F];
         let reader = BytesReader::from(b);
-        fn as_stream_trait<S: KStream>(_io: &S) {
-            let key: Vec<u8> = vec![3, 3];
-            let res = S::process_xor_many(_io.read_bytes(2).unwrap(), &key);
-            assert_eq!(vec![0x65, 0x6C], res);
-        }
-        as_stream_trait(&reader);
+        let key: Vec<u8> = vec![3, 3];
+        let res = BytesReader::process_xor_many(&reader.read_bytes(2).unwrap(), &key);
+        assert_eq!(vec![0x65, 0x6C], res);
     }
 
     #[test]
-    fn process_rotate_left() {
+    fn process_rotate_left_test() {
         let b = vec![0x09, 0xAC];
         let reader = BytesReader::from(b);
-        fn as_stream_trait<S: KStream>(_io: &S) {
-            let res = S::process_rotate_left(_io.read_bytes(2).unwrap(), 3);
-            let expected: Vec<u8> = vec![0x48, 0x65];
-            assert_eq!(expected, res);
-        }
-        as_stream_trait(&reader);
+        let res = BytesReader::process_rotate_left(&reader.read_bytes(2).unwrap(), 3);
+        let expected: Vec<u8> = vec![0x48, 0x65];
+        assert_eq!(expected, res);
     }
 
     #[test]
     fn basic_seek() {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
         let reader = BytesReader::from(b);
+
+        assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
+        let pos = reader.pos();
+        reader.seek(1).unwrap();
+        assert_eq!(reader.read_bytes(4).unwrap()[..], [2, 3, 4, 5]);
+        reader.seek(pos).unwrap();
+        assert_eq!(reader.read_bytes(4).unwrap()[..], [5, 6, 7, 8]);
+        assert_eq!(
+            reader.seek(9).unwrap_err(),
+            KError::Incomplete(Needed::Size(1))
+        );
+    }
+
+    use tempfile::tempdir;
+
+    fn dump_and_open(bytes: &[u8]) -> BytesReader {
+        let mut tmp_dir = tempdir().unwrap();
+        let file_path = tmp_dir.path().join("test.txt");
+        {
+            let mut tmp_file = std::fs::File::create(file_path.clone()).unwrap();
+            tmp_file.write_all(bytes);
+        }
+        BytesReader::open(file_path).unwrap()
+    }
+
+    #[test]
+    fn basic_read_bytes_file() {
+        let reader = dump_and_open(&vec![1, 2, 3, 4, 5, 6, 7, 8]);
+
+        assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
+        assert_eq!(reader.read_bytes(3).unwrap()[..], [5, 6, 7]);
+        assert_eq!(
+            reader.read_bytes(4).unwrap_err(),
+            KError::Incomplete(Needed::Size(3))
+        );
+        assert_eq!(reader.read_bytes(1).unwrap()[..], [8]);
+    }
+
+    #[test]
+    fn basic_seek_file() {
+        let reader = dump_and_open(&vec![1, 2, 3, 4, 5, 6, 7, 8]);
 
         assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
         let pos = reader.pos();
