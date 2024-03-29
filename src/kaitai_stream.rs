@@ -169,17 +169,6 @@ pub trait KaitaiStream: Read + Seek {
         }
     }
 
-    fn ensure_fixed_contents(&mut self, count: usize, expected: Vec<u8>) -> Result<Vec<u8>> {
-        let mut buffer = vec![0; count];
-        match self.read_exact(&mut buffer[..]) {
-            Ok(_) => {
-                assert_eq!(buffer, expected);
-                Ok(buffer)
-            }
-            Err(e) => Err(e),
-        }
-    }
-
     // ------- //
     // Strings //
     // ------- //

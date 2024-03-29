@@ -115,25 +115,6 @@ mod tests {
     }
 
     #[test]
-    fn ensure_fixed_contents() {
-        let mut buf = Cursor::new([1, 2, 3, 4, 5, 6, 7, 8]);
-        assert_eq!(
-            buf.ensure_fixed_contents(4, vec![1, 2, 3, 4]).unwrap(),
-            [1, 2, 3, 4]
-        );
-    }
-
-    #[test]
-    #[should_panic]
-    fn ensure_fixed_contents_panic() {
-        let mut buf = Cursor::new([1, 2, 3, 4, 5, 6, 7, 8]);
-        assert_eq!(
-            buf.ensure_fixed_contents(4, vec![5, 6, 7, 8]).unwrap(),
-            [1, 2, 3, 4]
-        );
-    }
-
-    #[test]
     fn read_str_byte_limit() {
         let mut buf = Cursor::new([
             230, 151, 165, 230, 156, 172, 232, 170, 158, // utf-8
