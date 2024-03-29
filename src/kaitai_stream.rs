@@ -1,16 +1,16 @@
-use std::io::{Cursor, Seek, SeekFrom, Read, Result};
 use flate2::read::ZlibDecoder;
+use std::io::{Cursor, Read, Result, Seek, SeekFrom};
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use encoding::DecoderTrap;
 use encoding::label::encoding_from_whatwg_label;
+use encoding::DecoderTrap;
 
 macro_rules! read_endian {
     ($this:ident, $size:expr, $end:ident, $method:ident) => {{
         let mut buf = [0; $size];
         $this.read_exact(&mut buf)?;
         Ok($end::$method(&buf))
-    }}
+    }};
 }
 
 pub trait KaitaiStream: Read + Seek {
@@ -210,13 +210,14 @@ pub trait KaitaiStream: Read + Seek {
         }
     }
 
-    fn read_strz(&mut self,
-                 encoding: &str,
-                 terminator: u8,
-                 include_terminator: bool,
-                 consume_terminator: bool,
-                 eos_error: bool)
-                 -> Result<String> {
+    fn read_strz(
+        &mut self,
+        encoding: &str,
+        terminator: u8,
+        include_terminator: bool,
+        consume_terminator: bool,
+        eos_error: bool,
+    ) -> Result<String> {
         let enc = match encoding_from_whatwg_label(encoding) {
             Some(enc) => enc,
             None => panic!("Unknown encoding: {}", encoding),

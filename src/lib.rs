@@ -6,8 +6,8 @@ pub use crate::kaitai_struct::KaitaiStruct;
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use crate::KaitaiStream;
+    use std::io::Cursor;
 
     #[test]
     fn test_seek() {
@@ -50,13 +50,13 @@ mod tests {
     }
 
     macro_rules! test_read_integer {
-        ($name:ident, $value:expr) => (
+        ($name:ident, $value:expr) => {
             #[test]
             fn $name() {
                 let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
                 assert_eq!(buf.$name().unwrap(), $value);
             }
-        );
+        };
     }
 
     test_read_integer!(read_u1, 1);
@@ -116,16 +116,20 @@ mod tests {
     #[test]
     fn ensure_fixed_contents() {
         let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-        assert_eq!(buf.ensure_fixed_contents(4, vec![1, 2, 3, 4]).unwrap(),
-                   vec![1, 2, 3, 4]);
+        assert_eq!(
+            buf.ensure_fixed_contents(4, vec![1, 2, 3, 4]).unwrap(),
+            vec![1, 2, 3, 4]
+        );
     }
 
     #[test]
     #[should_panic]
     fn ensure_fixed_contents_panic() {
         let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-        assert_eq!(buf.ensure_fixed_contents(4, vec![5, 6, 7, 8]).unwrap(),
-                   vec![1, 2, 3, 4]);
+        assert_eq!(
+            buf.ensure_fixed_contents(4, vec![5, 6, 7, 8]).unwrap(),
+            vec![1, 2, 3, 4]
+        );
     }
 
     #[test]
@@ -135,8 +139,7 @@ mod tests {
             147, 250, 150, 123, 140, 234, // shift_jis
         ]);
         assert_eq!(buf.read_str_byte_limit(9, "utf-8").unwrap(), "日本語");
-        assert_eq!(buf.read_str_byte_limit(6, "shift_jis").unwrap(),
-                   "日本語");
+        assert_eq!(buf.read_str_byte_limit(6, "shift_jis").unwrap(), "日本語");
     }
 
     #[test]
@@ -152,10 +155,14 @@ mod tests {
             230, 151, 165, 230, 156, 172, 232, 170, 158, 0, // utf-8
             147, 250, 150, 123, 140, 234, 0, // shift_jis
         ]);
-        assert_eq!(buf.read_strz("utf-8", 0, false, true, false).unwrap(),
-                   "日本語");
-        assert_eq!(buf.read_strz("shift_jis", 0, false, true, false).unwrap(),
-                   "日本語");
+        assert_eq!(
+            buf.read_strz("utf-8", 0, false, true, false).unwrap(),
+            "日本語"
+        );
+        assert_eq!(
+            buf.read_strz("shift_jis", 0, false, true, false).unwrap(),
+            "日本語"
+        );
     }
 
     #[test]
@@ -174,25 +181,32 @@ mod tests {
     #[test]
     fn process_xor_one_many() {
         let mut buf = Cursor::new(vec![]);
-        assert_eq!(buf.process_xor_many(vec![0, 0, 0, 0], vec![1, 2, 3, 4]),
-                   vec![1, 2, 3, 4]);
+        assert_eq!(
+            buf.process_xor_many(vec![0, 0, 0, 0], vec![1, 2, 3, 4]),
+            vec![1, 2, 3, 4]
+        );
     }
 
     #[test]
     fn process_rotate_left() {
         let mut buf = Cursor::new(vec![]);
-        assert_eq!(buf.process_rotate_left(vec![0b1111_0000, 0b0110_0110], 2, 1),
-                   vec![0b1100_0011, 0b1001_1001]);
-        assert_eq!(buf.process_rotate_left(vec![0b1111_0000, 0b0110_0110], -6, 1),
-                   vec![0b1100_0011, 0b1001_1001]);
+        assert_eq!(
+            buf.process_rotate_left(vec![0b1111_0000, 0b0110_0110], 2, 1),
+            vec![0b1100_0011, 0b1001_1001]
+        );
+        assert_eq!(
+            buf.process_rotate_left(vec![0b1111_0000, 0b0110_0110], -6, 1),
+            vec![0b1100_0011, 0b1001_1001]
+        );
     }
 
     #[test]
     fn process_zlib() {
         let mut buf = Cursor::new(vec![]);
-        let arr = vec![120, 156, 75, 84, 40, 44, 205, 76, 206, 86, 72, 42, 202, 47, 207, 83, 72,
-                       203, 175, 80, 200, 42, 205, 45, 40, 86, 200, 47, 75, 45, 2, 0, 148, 189,
-                       10, 127];
+        let arr = vec![
+            120, 156, 75, 84, 40, 44, 205, 76, 206, 86, 72, 42, 202, 47, 207, 83, 72, 203, 175, 80,
+            200, 42, 205, 45, 40, 86, 200, 47, 75, 45, 2, 0, 148, 189, 10, 127,
+        ];
         let deflate = buf.process_zlib(arr).unwrap();
         assert_eq!(deflate, "a quick brown fox jumps over".as_bytes())
     }
