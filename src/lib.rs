@@ -116,30 +116,107 @@ mod tests {
         assert_eq!(buf.read_bytes_full().unwrap(), [1, 2, 3, 4, 5, 6, 7, 8]);
     }
 
-    #[test]
-    fn read_bytes_term() {
-        let mut buf = Cursor::new([
-            230, 151, 165, 230, 156, 172, 232, 170, 158, 0, // utf-8
-            147, 250, 150, 123, 140, 234, 0, // shift_jis
-        ]);
-        assert_eq!(
-            buf.read_bytes_term(0, false, true, false).unwrap(),
-            [230, 151, 165, 230, 156, 172, 232, 170, 158]
-        );
-        assert_eq!(
-            buf.read_bytes_term(0, false, true, false).unwrap(),
-            [147, 250, 150, 123, 140, 234]
-        );
-    }
+    mod read_bytes_term {
+        use super::*;
 
-    #[test]
-    #[should_panic]
-    fn read_bytes_term_panic() {
-        let mut buf = Cursor::new([49, 50, 51]); // no terminator
-        assert_eq!(
-            buf.read_bytes_term(0, false, true, true).unwrap(),
-            [49, 50, 51]
-        );
+        mod without_error {
+            use super::*;
+            use pretty_assertions::assert_eq;
+
+            #[test]
+            fn with_terminator() {
+                let mut buf = Cursor::new([
+                    1, 2, 3, 4, 0, // first chunk
+                    5, 6, 0, // second chunk
+                ]);
+                // Read to 0, but not consume it and not include in the result
+                assert_eq!(
+                    buf.read_bytes_term(0, false, false, false).unwrap(),
+                    [1, 2, 3, 4]
+                );
+                // Read to 0 and consume it, but do not include in the result.
+                // Because we already at 0, an empty array is returned
+                assert_eq!(buf.read_bytes_term(0, false, true, false).unwrap(), []);
+                // Read to second 0, include it to the result, but not consume
+                assert_eq!(
+                    buf.read_bytes_term(0, true, false, false).unwrap(),
+                    [5, 6, 0]
+                );
+                // Read to second 0 and consume it, and include in the result.
+                // Because we already at second 0, only it is returned
+                assert_eq!(buf.read_bytes_term(0, true, true, false).unwrap(), [0]);
+            }
+
+            #[test]
+            fn without_terminator() {
+                let mut buf = Cursor::new([1, 2, 3, 4]);
+                // Read to missing 0, do not try consume it or include it in the result
+                assert_eq!(
+                    buf.read_bytes_term(0, false, false, false).unwrap(),
+                    [1, 2, 3, 4]
+                );
+                // Read to missing 0, try to consume it but do not try to include it in the result
+                // Because we already at the end, an empty array is returned
+                assert_eq!(buf.read_bytes_term(0, false, true, false).unwrap(), []);
+
+                let mut buf = Cursor::new([5, 6]);
+                // Read to missing 0, do not try to consume, but try to include it in the result
+                assert_eq!(buf.read_bytes_term(0, true, false, false).unwrap(), [5, 6]);
+                // Read to missing 0, try to consume and include it in the result
+                // Because we already at the end, an empty array is returned
+                assert_eq!(buf.read_bytes_term(0, true, true, false).unwrap(), []);
+            }
+        }
+
+        mod with_eos_error {
+            use super::*;
+            use pretty_assertions::assert_eq;
+
+            #[test]
+            fn with_terminator() {
+                let mut buf = Cursor::new([
+                    1, 2, 3, 4, 0, // first chunk
+                    5, 6, 0, // second chunk
+                ]);
+                // Read to 0, but not consume it and not include in the result
+                assert_eq!(
+                    buf.read_bytes_term(0, false, false, true).unwrap(),
+                    [1, 2, 3, 4]
+                );
+                // Read to 0 and consume it, but do not include in the result.
+                // Because we already at 0, an empty array is returned
+                assert_eq!(buf.read_bytes_term(0, false, true, true).unwrap(), []);
+                // Read to second 0, include it to the result, but not consume
+                assert_eq!(
+                    buf.read_bytes_term(0, true, false, true).unwrap(),
+                    [5, 6, 0]
+                );
+                // Read to second 0 and consume it, and include in the result.
+                // Because we already at second 0, only it is returned
+                assert_eq!(buf.read_bytes_term(0, true, true, true).unwrap(), [0]);
+            }
+
+            #[test]
+            fn without_terminator() {
+                // Read to missing 0 lead to error
+                assert!(matches!(
+                    Cursor::new([1, 2]).read_bytes_term(0, false, false, true),
+                    Err(_)
+                ));
+                assert!(matches!(
+                    Cursor::new([3, 4]).read_bytes_term(0, false, true, true),
+                    Err(_)
+                ));
+                assert!(matches!(
+                    Cursor::new([5, 6]).read_bytes_term(0, true, false, true),
+                    Err(_)
+                ));
+                assert!(matches!(
+                    Cursor::new([7, 8]).read_bytes_term(0, true, true, true),
+                    Err(_)
+                ));
+            }
+        }
     }
 
     #[test]
