@@ -117,26 +117,29 @@ mod tests {
     }
 
     #[test]
-    fn read_strz() {
+    fn read_bytes_term() {
         let mut buf = Cursor::new([
             230, 151, 165, 230, 156, 172, 232, 170, 158, 0, // utf-8
             147, 250, 150, 123, 140, 234, 0, // shift_jis
         ]);
         assert_eq!(
-            buf.read_strz("utf-8", 0, false, true, false).unwrap(),
-            "日本語"
+            buf.read_bytes_term(0, false, true, false).unwrap(),
+            [230, 151, 165, 230, 156, 172, 232, 170, 158]
         );
         assert_eq!(
-            buf.read_strz("shift_jis", 0, false, true, false).unwrap(),
-            "日本語"
+            buf.read_bytes_term(0, false, true, false).unwrap(),
+            [147, 250, 150, 123, 140, 234]
         );
     }
 
     #[test]
     #[should_panic]
-    fn read_strz_panic() {
+    fn read_bytes_term_panic() {
         let mut buf = Cursor::new([49, 50, 51]); // no terminator
-        assert_eq!(buf.read_strz("utf-8", 0, false, true, true).unwrap(), "123");
+        assert_eq!(
+            buf.read_bytes_term(0, false, true, true).unwrap(),
+            [49, 50, 51]
+        );
     }
 
     #[test]

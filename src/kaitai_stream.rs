@@ -1,8 +1,6 @@
 use std::io::{Read, Result, Seek, SeekFrom};
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use encoding::label::encoding_from_whatwg_label;
-use encoding::DecoderTrap;
 
 macro_rules! read_endian {
     ($this:ident, $size:expr, $end:ident, $method:ident) => {{
@@ -168,21 +166,17 @@ pub trait KaitaiStream: Read + Seek {
         }
     }
 
-    fn read_strz(
+    fn read_bytes_term(
         &mut self,
-        encoding: &str,
         terminator: u8,
         include_terminator: bool,
         consume_terminator: bool,
         eos_error: bool,
-    ) -> Result<String> {
-        let enc = match encoding_from_whatwg_label(encoding) {
-            Some(enc) => enc,
-            None => panic!("Unknown encoding: {}", encoding),
-        };
+    ) -> Result<Vec<u8>> {
         let mut buffer = vec![];
-        let mut c = vec![0; 1];
+        let mut c = [0; 1];
         loop {
+            // TODO: Very non-optimal, optimize!
             match self.read_exact(&mut c[..]) {
                 Ok(_) => {}
                 Err(e) => {
@@ -204,10 +198,7 @@ pub trait KaitaiStream: Read + Seek {
             }
             buffer.push(c[0])
         }
-        match enc.decode(&buffer, DecoderTrap::Strict) {
-            Ok(s) => Ok(s),
-            Err(e) => panic!("Error decoding string: {}", e),
-        }
+        Ok(buffer)
     }
 }
 
