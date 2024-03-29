@@ -1,5 +1,4 @@
-use flate2::read::ZlibDecoder;
-use std::io::{Cursor, Read, Result, Seek, SeekFrom};
+use std::io::{Read, Result, Seek, SeekFrom};
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use encoding::label::encoding_from_whatwg_label;
@@ -238,59 +237,6 @@ pub trait KaitaiStream: Read + Seek {
         match enc.decode(&buffer, DecoderTrap::Strict) {
             Ok(s) => Ok(s),
             Err(e) => panic!("Error decoding string: {}", e),
-        }
-    }
-
-    // --------------------- //
-    // Byte array processing //
-    // --------------------- //
-
-    fn process_xor_one(&mut self, value: Vec<u8>, key: u8) -> Vec<u8> {
-        let mut result = vec![0; value.len()];
-        for i in 0..value.len() {
-            result[i] = (value[i] ^ key) as u8;
-        }
-        return result;
-    }
-
-    fn process_xor_many(&mut self, value: Vec<u8>, key: Vec<u8>) -> Vec<u8> {
-        let mut result = vec![0; value.len()];
-        let mut j = 0;
-        for i in 0..value.len() {
-            result[i] = (value[i] ^ key[j]) as u8;
-            j = (j + 1) % key.len();
-        }
-        return result;
-    }
-
-    fn process_rotate_left(&mut self, data: Vec<u8>, amount: i32, group_size: i32) -> Vec<u8> {
-        if amount < -7 || amount > 7 {
-            panic!("Rotation of more than 7 cannot be performed.");
-        }
-
-        let mut rot_amount = amount;
-        if rot_amount < 0 {
-            rot_amount += 8;
-        }
-
-        let mut result = vec![0; data.len()];
-        match group_size {
-            1 => {
-                for i in 0..data.len() {
-                    result[i] = data[i].rotate_left(rot_amount as u32);
-                }
-            }
-            _ => unimplemented!("Unable to rotate a group of {} bytes yet", group_size),
-        }
-        return result;
-    }
-
-    fn process_zlib(&mut self, data: Vec<u8>) -> Result<Vec<u8>> {
-        let mut decoder = ZlibDecoder::new(Cursor::new(data));
-        let mut result = Vec::new();
-        match decoder.read_to_end(&mut result) {
-            Ok(_) => Ok(result),
-            Err(e) => Err(e),
         }
     }
 }

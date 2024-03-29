@@ -1,8 +1,10 @@
 mod kaitai_stream;
 mod kaitai_struct;
+mod processors;
 
 pub use crate::kaitai_stream::KaitaiStream;
 pub use crate::kaitai_struct::KaitaiStruct;
+pub use crate::processors::*;
 
 #[cfg(test)]
 mod tests {
@@ -156,40 +158,36 @@ mod tests {
 
     #[test]
     fn process_xor_one() {
-        let mut buf = Cursor::new([]);
-        assert_eq!(buf.process_xor_one(vec![0, 0, 0, 0], 1), [1, 1, 1, 1]);
+        assert_eq!(crate::process_xor_one(&[0, 0, 0, 0], 1), [1, 1, 1, 1]);
     }
 
     #[test]
-    fn process_xor_one_many() {
-        let mut buf = Cursor::new([]);
+    fn process_xor_many() {
         assert_eq!(
-            buf.process_xor_many(vec![0, 0, 0, 0], vec![1, 2, 3, 4]),
+            crate::process_xor_many(&[0, 0, 0, 0], &[1, 2, 3, 4]),
             [1, 2, 3, 4]
         );
     }
 
     #[test]
     fn process_rotate_left() {
-        let mut buf = Cursor::new([]);
         assert_eq!(
-            buf.process_rotate_left(vec![0b1111_0000, 0b0110_0110], 2, 1),
+            crate::process_rotate_left(&[0b1111_0000, 0b0110_0110], 2, 1),
             [0b1100_0011, 0b1001_1001]
         );
         assert_eq!(
-            buf.process_rotate_left(vec![0b1111_0000, 0b0110_0110], -6, 1),
+            crate::process_rotate_left(&[0b1111_0000, 0b0110_0110], -6, 1),
             [0b1100_0011, 0b1001_1001]
         );
     }
 
     #[test]
     fn process_zlib() {
-        let mut buf = Cursor::new([]);
-        let arr = vec![
+        let arr = [
             120, 156, 75, 84, 40, 44, 205, 76, 206, 86, 72, 42, 202, 47, 207, 83, 72, 203, 175, 80,
             200, 42, 205, 45, 40, 86, 200, 47, 75, 45, 2, 0, 148, 189, 10, 127,
         ];
-        let deflate = buf.process_zlib(arr).unwrap();
+        let deflate = crate::process_zlib(&arr).unwrap();
         assert_eq!(deflate, "a quick brown fox jumps over".as_bytes())
     }
 }
