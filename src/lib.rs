@@ -1,3 +1,15 @@
+//! # Kaitai Struct: runtime library for Rust
+//!
+//! This library implements Kaitai Struct API for Rust.
+//!
+//! [Kaitai Struct] is a declarative language used for describe various binary
+//! data structures, laid out in files or in memory: i.e. binary file
+//! formats, network stream packet formats, etc.
+//!
+//! [Kaitai Struct]: https://github.com/kaitai-io/kaitai_struct/
+#![deny(missing_docs)]
+#![deny(unsafe_code)]
+
 mod kaitai_stream;
 mod kaitai_struct;
 mod processors;
