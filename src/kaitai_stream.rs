@@ -168,36 +168,6 @@ pub trait KaitaiStream: Read + Seek {
         }
     }
 
-    // ------- //
-    // Strings //
-    // ------- //
-
-    fn read_str_eos(&mut self, encoding: &str) -> Result<String> {
-        match encoding_from_whatwg_label(encoding) {
-            Some(enc) => {
-                let buffer = self.read_bytes_full()?;
-                match enc.decode(&buffer, DecoderTrap::Strict) {
-                    Ok(s) => Ok(s),
-                    Err(e) => panic!("Error decoding string: {}", e),
-                }
-            }
-            None => panic!("Unknown encoding: {}", encoding),
-        }
-    }
-
-    fn read_str_byte_limit(&mut self, length: usize, encoding: &str) -> Result<String> {
-        match encoding_from_whatwg_label(encoding) {
-            Some(enc) => {
-                let buffer = self.read_bytes(length)?;
-                match enc.decode(&buffer, DecoderTrap::Strict) {
-                    Ok(s) => Ok(s),
-                    Err(e) => panic!("Error decoding string: {}", e),
-                }
-            }
-            None => panic!("Unknown encoding: {}", encoding),
-        }
-    }
-
     fn read_strz(
         &mut self,
         encoding: &str,

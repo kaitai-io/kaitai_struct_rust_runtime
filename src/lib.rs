@@ -117,23 +117,6 @@ mod tests {
     }
 
     #[test]
-    fn read_str_byte_limit() {
-        let mut buf = Cursor::new([
-            230, 151, 165, 230, 156, 172, 232, 170, 158, // utf-8
-            147, 250, 150, 123, 140, 234, // shift_jis
-        ]);
-        assert_eq!(buf.read_str_byte_limit(9, "utf-8").unwrap(), "日本語");
-        assert_eq!(buf.read_str_byte_limit(6, "shift_jis").unwrap(), "日本語");
-    }
-
-    #[test]
-    fn read_str_eos() {
-        let mut buf = Cursor::new([49, 50, 51]);
-        assert_eq!(buf.read_str_eos("ascii").unwrap(), "123");
-        assert_eq!(buf.pos().unwrap(), 3);
-    }
-
-    #[test]
     fn read_strz() {
         let mut buf = Cursor::new([
             230, 151, 165, 230, 156, 172, 232, 170, 158, 0, // utf-8
