@@ -1,23 +1,41 @@
-use std::io::{Cursor, Seek, SeekFrom, Read, Result};
-use flate2::read::ZlibDecoder;
+use std::io::{Read, Result, Seek, SeekFrom};
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use encoding::DecoderTrap;
-use encoding::label::encoding_from_whatwg_label;
 
 macro_rules! read_endian {
     ($this:ident, $size:expr, $end:ident, $method:ident) => {{
         let mut buf = [0; $size];
-        try!($this.read_exact(&mut buf));
+        $this.read_exact(&mut buf)?;
         Ok($end::$method(&buf))
-    }}
+    }};
 }
 
+/// `KaitaiStream` trait provides implementation of [Kaitai Stream API] for Rust.
+///
+/// It provides a wide variety of simple methods to read (parse) binary
+/// representations of primitive types, such as integer and floating
+/// point numbers, byte arrays and strings, and also provides stream
+/// positioning / navigation methods with unified cross-language and
+/// cross-toolkit semantics.
+///
+/// Methods of this trait are called from the generated code to parse bynary stream
+/// into generated structures.
+///
+/// This trait is automatically implemented for all sources that is `Read + Seek`.
+///
+/// Typically, end users won't access any of these Kaitai Stream methods
+/// manually, but would describe a binary structure format using .ksy language
+/// and then would use Kaitai Struct compiler to generate source code in
+/// desired target language.  That code, in turn, would use this trait
+/// and API to do the actual parsing job.
+///
+/// [Kaitai Stream API]: https://doc.kaitai.io/stream_api.html
 pub trait KaitaiStream: Read + Seek {
     // ------------------ //
     // Stream positioning //
     // ------------------ //
 
+    /// Check if stream pointer is at the end of stream.
     fn is_eof(&mut self) -> Result<bool> {
         // TODO: I'm positive there's a better way to do this!
         // See also the `size` implementation
@@ -27,6 +45,7 @@ pub trait KaitaiStream: Read + Seek {
         return Ok(pos >= size);
     }
 
+    /// Set stream pointer to designated position in bytes from the beginning of the stream.
     fn seek(&mut self, position: u64) -> Result<()> {
         match Seek::seek(self, SeekFrom::Start(position)) {
             Ok(_) => Ok(()),
@@ -34,6 +53,7 @@ pub trait KaitaiStream: Read + Seek {
         }
     }
 
+    /// Get current position of a stream pointer in number of bytes from the beginning of the stream.
     fn pos(&mut self) -> Result<u64> {
         match Seek::seek(self, SeekFrom::Current(0)) {
             Ok(i) => Ok(i as u64),
@@ -41,6 +61,7 @@ pub trait KaitaiStream: Read + Seek {
         }
     }
 
+    /// Get total size of the stream in bytes.
     fn size(&mut self) -> Result<u64> {
         // TODO: I'm positive there's a better way to do this!
         let pos = self.pos()?;
@@ -53,6 +74,7 @@ pub trait KaitaiStream: Read + Seek {
     // Integer types - signed //
     // ---------------------- //
 
+    /// Reads one signed 1-byte integer, used to parse `s1` Kaitai type.
     fn read_s1(&mut self) -> Result<i8> {
         let mut buf = [0; 1];
         self.read_exact(&mut buf)?;
@@ -61,28 +83,34 @@ pub trait KaitaiStream: Read + Seek {
 
     // Big endian
 
+    /// Reads one signed 2-byte integer, used to parse `s2` Kaitai type in Big Endian.
     fn read_s2be(&mut self) -> Result<i16> {
         read_endian!(self, 2, BigEndian, read_i16)
     }
 
+    /// Reads one signed 4-byte integer, used to parse `s4` Kaitai type in Big Endian.
     fn read_s4be(&mut self) -> Result<i32> {
         read_endian!(self, 4, BigEndian, read_i32)
     }
 
+    /// Reads one signed 8-byte integer, used to parse `s8` Kaitai type in Big Endian.
     fn read_s8be(&mut self) -> Result<i64> {
         read_endian!(self, 8, BigEndian, read_i64)
     }
 
     // Little endian
 
+    /// Reads one signed 2-byte integer, used to parse `s2` Kaitai type in Little Endian.
     fn read_s2le(&mut self) -> Result<i16> {
         read_endian!(self, 2, LittleEndian, read_i16)
     }
 
+    /// Reads one signed 4-byte integer, used to parse `s4` Kaitai type in Little Endian.
     fn read_s4le(&mut self) -> Result<i32> {
         read_endian!(self, 4, LittleEndian, read_i32)
     }
 
+    /// Reads one signed 8-byte integer, used to parse `s8` Kaitai type in Little Endian.
     fn read_s8le(&mut self) -> Result<i64> {
         read_endian!(self, 8, LittleEndian, read_i64)
     }
@@ -91,6 +119,7 @@ pub trait KaitaiStream: Read + Seek {
     // Integer types - unsigned //
     // ------------------------ //
 
+    /// Reads one unsigned 1-byte integer, used to parse `u1` Kaitai type.
     fn read_u1(&mut self) -> Result<u8> {
         let mut buf = [0; 1];
         self.read_exact(&mut buf)?;
@@ -99,28 +128,34 @@ pub trait KaitaiStream: Read + Seek {
 
     // Big endian
 
+    /// Reads one unsigned 2-byte integer, used to parse `u2` Kaitai type in Big Endian.
     fn read_u2be(&mut self) -> Result<u16> {
         read_endian!(self, 2, BigEndian, read_u16)
     }
 
+    /// Reads one unsigned 4-byte integer, used to parse `u4` Kaitai type in Big Endian.
     fn read_u4be(&mut self) -> Result<u32> {
         read_endian!(self, 4, BigEndian, read_u32)
     }
 
+    /// Reads one unsigned 8-byte integer, used to parse `u8` Kaitai type in Big Endian.
     fn read_u8be(&mut self) -> Result<u64> {
         read_endian!(self, 8, BigEndian, read_u64)
     }
 
     // Little endian
 
+    /// Reads one unsigned 2-byte integer, used to parse `u2` Kaitai type in Little Endian.
     fn read_u2le(&mut self) -> Result<u16> {
         read_endian!(self, 2, LittleEndian, read_u16)
     }
 
+    /// Reads one unsigned 4-byte integer, used to parse `u4` Kaitai type in Little Endian.
     fn read_u4le(&mut self) -> Result<u32> {
         read_endian!(self, 4, LittleEndian, read_u32)
     }
 
+    /// Reads one unsigned 8-byte integer, used to parse `u8` Kaitai type in Little Endian.
     fn read_u8le(&mut self) -> Result<u64> {
         read_endian!(self, 8, LittleEndian, read_u64)
     }
@@ -131,20 +166,24 @@ pub trait KaitaiStream: Read + Seek {
 
     // Big endian
 
+    /// Reads one floating point number with single precision, used to parse `f4` Kaitai type in Big Endian.
     fn read_f4be(&mut self) -> Result<f32> {
         read_endian!(self, 4, BigEndian, read_f32)
     }
 
+    /// Reads one floating point number with double precision, used to parse `f8` Kaitai type in Big Endian.
     fn read_f8be(&mut self) -> Result<f64> {
         read_endian!(self, 8, BigEndian, read_f64)
     }
 
     // Little endian
 
+    /// Reads one floating point number with single precision, used to parse `f4` Kaitai type in Little Endian.
     fn read_f4le(&mut self) -> Result<f32> {
         read_endian!(self, 4, LittleEndian, read_f32)
     }
 
+    /// Reads one floating point number with double precision, used to parse `f8` Kaitai type in Little Endian.
     fn read_f8le(&mut self) -> Result<f64> {
         read_endian!(self, 8, LittleEndian, read_f64)
     }
@@ -153,6 +192,7 @@ pub trait KaitaiStream: Read + Seek {
     // Byte arrays //
     // ----------- //
 
+    /// Reads designated number of bytes from the stream and returns them in a newly allocated buffer.
     fn read_bytes(&mut self, count: usize) -> Result<Vec<u8>> {
         let mut buffer = vec![0; count];
         match self.read_exact(&mut buffer[..]) {
@@ -161,6 +201,7 @@ pub trait KaitaiStream: Read + Seek {
         }
     }
 
+    /// Reads all the remaining bytes in a stream and returns them in a newly allocated buffer.
     fn read_bytes_full(&mut self) -> Result<Vec<u8>> {
         let mut buffer = vec![0; 0];
         match self.read_to_end(&mut buffer) {
@@ -169,61 +210,26 @@ pub trait KaitaiStream: Read + Seek {
         }
     }
 
-    fn ensure_fixed_contents(&mut self, count: usize, expected: Vec<u8>) -> Result<Vec<u8>> {
-        let mut buffer = vec![0; count];
-        match self.read_exact(&mut buffer[..]) {
-            Ok(_) => {
-                assert_eq!(buffer, expected);
-                Ok(buffer)
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    // ------- //
-    // Strings //
-    // ------- //
-
-    fn read_str_eos(&mut self, encoding: &str) -> Result<String> {
-        match encoding_from_whatwg_label(encoding) {
-            Some(enc) => {
-                let buffer = self.read_bytes_full()?;
-                match enc.decode(&buffer, DecoderTrap::Strict) {
-                    Ok(s) => Ok(s),
-                    Err(e) => panic!("Error decoding string: {}", e),
-                }
-            }
-            None => panic!("Unknown encoding: {}", encoding),
-        }
-    }
-
-    fn read_str_byte_limit(&mut self, length: usize, encoding: &str) -> Result<String> {
-        match encoding_from_whatwg_label(encoding) {
-            Some(enc) => {
-                let buffer = self.read_bytes(length)?;
-                match enc.decode(&buffer, DecoderTrap::Strict) {
-                    Ok(s) => Ok(s),
-                    Err(e) => panic!("Error decoding string: {}", e),
-                }
-            }
-            None => panic!("Unknown encoding: {}", encoding),
-        }
-    }
-
-    fn read_strz(&mut self,
-                 encoding: &str,
-                 terminator: u8,
-                 include_terminator: bool,
-                 consume_terminator: bool,
-                 eos_error: bool)
-                 -> Result<String> {
-        let enc = match encoding_from_whatwg_label(encoding) {
-            Some(enc) => enc,
-            None => panic!("Unknown encoding: {}", encoding),
-        };
+    /// Reads bytes until the `terminator` byte is reached.
+    ///
+    /// # Parameters
+    /// - `terminator`: the byte that terminates search
+    /// - `include_terminator`: `true` to include the terminator in the returned array.
+    ///   If `eos_error` is `false` and no terminator found, does nothing
+    /// - `consume_terminator`: `true` to consume the terminator byte before returning
+    /// - `eos_error`: `true` to return an error when the EOS was reached before the terminator,
+    ///   otherwise EOF is treated as a terminator
+    fn read_bytes_term(
+        &mut self,
+        terminator: u8,
+        include_terminator: bool,
+        consume_terminator: bool,
+        eos_error: bool,
+    ) -> Result<Vec<u8>> {
         let mut buffer = vec![];
-        let mut c = vec![0; 1];
+        let mut c = [0; 1];
         loop {
+            // TODO: Very non-optimal, optimize!
             match self.read_exact(&mut c[..]) {
                 Ok(_) => {}
                 Err(e) => {
@@ -245,63 +251,7 @@ pub trait KaitaiStream: Read + Seek {
             }
             buffer.push(c[0])
         }
-        match enc.decode(&buffer, DecoderTrap::Strict) {
-            Ok(s) => Ok(s),
-            Err(e) => panic!("Error decoding string: {}", e),
-        }
-    }
-
-    // --------------------- //
-    // Byte array processing //
-    // --------------------- //
-
-    fn process_xor_one(&mut self, value: Vec<u8>, key: u8) -> Vec<u8> {
-        let mut result = vec![0; value.len()];
-        for i in 0..value.len() {
-            result[i] = (value[i] ^ key) as u8;
-        }
-        return result;
-    }
-
-    fn process_xor_many(&mut self, value: Vec<u8>, key: Vec<u8>) -> Vec<u8> {
-        let mut result = vec![0; value.len()];
-        let mut j = 0;
-        for i in 0..value.len() {
-            result[i] = (value[i] ^ key[j]) as u8;
-            j = (j + 1) % key.len();
-        }
-        return result;
-    }
-
-    fn process_rotate_left(&mut self, data: Vec<u8>, amount: i32, group_size: i32) -> Vec<u8> {
-        if amount < -7 || amount > 7 {
-            panic!("Rotation of more than 7 cannot be performed.");
-        }
-
-        let mut rot_amount = amount;
-        if rot_amount < 0 {
-            rot_amount += 8;
-        }
-
-        let mut result = vec![0; data.len()];
-        match group_size {
-            1 => {
-                for i in 0..data.len() {
-                    result[i] = data[i].rotate_left(rot_amount as u32);
-                }
-            }
-            _ => panic!("Unable to rotate a group of {} bytes yet", group_size),
-        }
-        return result;
-    }
-
-    fn process_zlib(&mut self, data: Vec<u8>) -> Result<Vec<u8>> {
-        let mut decoder = ZlibDecoder::new(Cursor::new(data));
-        let mut result = Vec::new();
-        match decoder.read_to_end(&mut result) {
-            Ok(_) => Ok(result),
-            Err(e) => Err(e),
-        }
+        Ok(buffer)
     }
 }
 

@@ -1,28 +1,95 @@
-extern crate byteorder;
-extern crate encoding;
-extern crate flate2;
+//! # Kaitai Struct: runtime library for Rust
+//!
+//! This library implements Kaitai Struct API for Rust.
+//!
+//! [Kaitai Struct] is a declarative language used for describe various binary
+//! data structures, laid out in files or in memory: i.e. binary file
+//! formats, network stream packet formats, etc.
+//!
+//! [Kaitai Struct]: https://github.com/kaitai-io/kaitai_struct/
+#![deny(missing_docs)]
+#![deny(unsafe_code)]
+
+use std::num::ParseIntError;
 
 mod kaitai_stream;
 mod kaitai_struct;
+mod processors;
 
-pub use kaitai_stream::KaitaiStream;
-pub use kaitai_struct::KaitaiStruct;
+pub use crate::kaitai_stream::KaitaiStream;
+pub use crate::kaitai_struct::KaitaiStruct;
+pub use crate::processors::*;
+
+/// Parse a value from a string in a given base to an integer.
+///
+/// This trait allows type deduction based on the returned value, in the same way,
+/// as [FromStr] did. It is implemented for all integer types and delegates
+/// conversion to their [`{integer}::from_str_radix`][m] methods.
+///
+/// # Examples
+/// Basic usage:
+/// ```
+/// # use kaitai_struct::FromStrRadix;
+/// # use pretty_assertions::assert_eq;
+/// // Unlike direct call to `usize::from_str_radix`, the resulting type here
+/// // dictated by the left side of assignment
+/// let n: Result<usize, _> = FromStrRadix::from_str_radix("A", 16);
+/// assert_eq!(n, Ok(10));
+/// ```
+///
+/// [FromStr]: std::str::FromStr
+/// [m]: usize::from_str_radix
+pub trait FromStrRadix: Sized {
+    /// Converts a string slice in a given base to an integer.
+    ///
+    /// The string is expected to be an optional `+` or `-` sign followed by digits.
+    /// Leading and trailing whitespace represent an error.
+    /// Digits are a subset of these characters, depending on radix:
+    ///
+    /// * `0-9`
+    /// * `a-z`
+    /// * `A-Z`
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `radix` is not in the range from 2 to 36.
+    fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError>;
+}
+
+macro_rules! impl_conversion {
+    ($($ty:ty)+) => {
+        $(
+            impl FromStrRadix for $ty {
+                #[inline(always)]
+                fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError> {
+                    Self::from_str_radix(src, radix)
+                }
+            }
+        )*
+    };
+}
+
+impl_conversion!(
+    u8 u16 u32 u64 u128 usize
+    i8 i16 i32 i64 i128 isize
+);
 
 #[cfg(test)]
 mod tests {
+    use crate::KaitaiStream;
+    use pretty_assertions::assert_eq;
     use std::io::Cursor;
-    use KaitaiStream;
 
     #[test]
     fn test_seek() {
-        let mut buf = Cursor::new(vec![0, 0, 0, 0, 64, 226, 1, 0]);
+        let mut buf = Cursor::new([0, 0, 0, 0, 64, 226, 1, 0]);
         let _ = buf.seek(4);
         assert_eq!(buf.read_s4le().unwrap(), 123456);
     }
 
     #[test]
     fn test_pos() {
-        let mut buf = Cursor::new(vec![0, 0, 0, 0, 64, 226, 1, 0]);
+        let mut buf = Cursor::new([0, 0, 0, 0, 64, 226, 1, 0]);
         assert_eq!(buf.pos().unwrap(), 0);
         let _ = buf.seek(4);
         assert_eq!(buf.pos().unwrap(), 4);
@@ -30,7 +97,7 @@ mod tests {
 
     #[test]
     fn test_multiple_reads() {
-        let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        let mut buf = Cursor::new([1, 2, 3, 4, 5, 6, 7, 8]);
         for x in 0..8 {
             assert_eq!(buf.pos().unwrap(), x as u64);
             assert_eq!(buf.read_s1().unwrap(), (x + 1) as i8);
@@ -39,13 +106,13 @@ mod tests {
 
     #[test]
     fn test_size() {
-        let mut buf = Cursor::new(vec![0, 0, 0, 0, 64, 226, 1, 0]);
+        let mut buf = Cursor::new([0, 0, 0, 0, 64, 226, 1, 0]);
         assert_eq!(buf.size().unwrap(), 8);
     }
 
     #[test]
     fn test_is_eof() {
-        let mut buf = Cursor::new(vec![0, 0, 0, 0]);
+        let mut buf = Cursor::new([0, 0, 0, 0]);
         assert_eq!(buf.is_eof().unwrap(), false);
         let _ = buf.read_s2le();
         assert_eq!(buf.is_eof().unwrap(), false);
@@ -54,13 +121,13 @@ mod tests {
     }
 
     macro_rules! test_read_integer {
-        ($name:ident, $value:expr) => (
+        ($name:ident, $value:expr) => {
             #[test]
             fn $name() {
-                let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
+                let mut buf = Cursor::new([1, 2, 3, 4, 5, 6, 7, 8]);
                 assert_eq!(buf.$name().unwrap(), $value);
             }
-        );
+        };
     }
 
     test_read_integer!(read_u1, 1);
@@ -83,121 +150,175 @@ mod tests {
 
     #[test]
     fn read_f4le() {
-        let mut buf = Cursor::new(vec![0, 0, 128, 62]);
+        let mut buf = Cursor::new([0, 0, 128, 62]);
         assert_eq!(buf.read_f4le().unwrap(), 0.25);
     }
 
     #[test]
     fn read_f4be() {
-        let mut buf = Cursor::new(vec![62, 128, 0, 0]);
+        let mut buf = Cursor::new([62, 128, 0, 0]);
         assert_eq!(buf.read_f4be().unwrap(), 0.25);
     }
 
     #[test]
     fn read_f8le() {
-        let mut buf = Cursor::new(vec![0, 0, 0, 0, 0, 0, 208, 63]);
+        let mut buf = Cursor::new([0, 0, 0, 0, 0, 0, 208, 63]);
         assert_eq!(buf.read_f8le().unwrap(), 0.25);
     }
 
     #[test]
     fn read_f8be() {
-        let mut buf = Cursor::new(vec![63, 208, 0, 0, 0, 0, 0, 0]);
+        let mut buf = Cursor::new([63, 208, 0, 0, 0, 0, 0, 0]);
         assert_eq!(buf.read_f8be().unwrap(), 0.25);
     }
 
     #[test]
     fn read_bytes() {
-        let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-        assert_eq!(buf.read_bytes(4).unwrap(), vec![1, 2, 3, 4]);
+        let mut buf = Cursor::new([1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(buf.read_bytes(4).unwrap(), [1, 2, 3, 4]);
     }
 
     #[test]
     fn read_bytes_full() {
-        let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-        assert_eq!(buf.read_bytes_full().unwrap(), vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        let mut buf = Cursor::new([1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(buf.read_bytes_full().unwrap(), [1, 2, 3, 4, 5, 6, 7, 8]);
     }
 
-    #[test]
-    fn ensure_fixed_contents() {
-        let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-        assert_eq!(buf.ensure_fixed_contents(4, vec![1, 2, 3, 4]).unwrap(),
-                   vec![1, 2, 3, 4]);
-    }
+    mod read_bytes_term {
+        use super::*;
 
-    #[test]
-    #[should_panic]
-    fn ensure_fixed_contents_panic() {
-        let mut buf = Cursor::new(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-        assert_eq!(buf.ensure_fixed_contents(4, vec![5, 6, 7, 8]).unwrap(),
-                   vec![1, 2, 3, 4]);
-    }
+        mod without_error {
+            use super::*;
+            use pretty_assertions::assert_eq;
 
-    #[test]
-    fn read_str_byte_limit() {
-        let mut buf = Cursor::new(vec![
-            230, 151, 165, 230, 156, 172, 232, 170, 158, // utf-8
-            147, 250, 150, 123, 140, 234, // shift_jis
-        ]);
-        assert_eq!(buf.read_str_byte_limit(9, "utf-8").unwrap(), "日本語");
-        assert_eq!(buf.read_str_byte_limit(6, "shift_jis").unwrap(),
-                   "日本語");
-    }
+            #[test]
+            fn with_terminator() {
+                let mut buf = Cursor::new([
+                    1, 2, 3, 4, 0, // first chunk
+                    5, 6, 0, // second chunk
+                ]);
+                // Read to 0, but not consume it and not include in the result
+                assert_eq!(
+                    buf.read_bytes_term(0, false, false, false).unwrap(),
+                    [1, 2, 3, 4]
+                );
+                // Read to 0 and consume it, but do not include in the result.
+                // Because we already at 0, an empty array is returned
+                assert_eq!(buf.read_bytes_term(0, false, true, false).unwrap(), []);
+                // Read to second 0, include it to the result, but not consume
+                assert_eq!(
+                    buf.read_bytes_term(0, true, false, false).unwrap(),
+                    [5, 6, 0]
+                );
+                // Read to second 0 and consume it, and include in the result.
+                // Because we already at second 0, only it is returned
+                assert_eq!(buf.read_bytes_term(0, true, true, false).unwrap(), [0]);
+            }
 
-    #[test]
-    fn read_str_eos() {
-        let mut buf = Cursor::new(vec![49, 50, 51]);
-        assert_eq!(buf.read_str_eos("ascii").unwrap(), "123");
-        assert_eq!(buf.pos().unwrap(), 3);
-    }
+            #[test]
+            fn without_terminator() {
+                let mut buf = Cursor::new([1, 2, 3, 4]);
+                // Read to missing 0, do not try consume it or include it in the result
+                assert_eq!(
+                    buf.read_bytes_term(0, false, false, false).unwrap(),
+                    [1, 2, 3, 4]
+                );
+                // Read to missing 0, try to consume it but do not try to include it in the result
+                // Because we already at the end, an empty array is returned
+                assert_eq!(buf.read_bytes_term(0, false, true, false).unwrap(), []);
 
-    #[test]
-    fn read_strz() {
-        let mut buf = Cursor::new(vec![
-            230, 151, 165, 230, 156, 172, 232, 170, 158, 0, // utf-8
-            147, 250, 150, 123, 140, 234, 0, // shift_jis
-        ]);
-        assert_eq!(buf.read_strz("utf-8", 0, false, true, false).unwrap(),
-                   "日本語");
-        assert_eq!(buf.read_strz("shift_jis", 0, false, true, false).unwrap(),
-                   "日本語");
-    }
+                let mut buf = Cursor::new([5, 6]);
+                // Read to missing 0, do not try to consume, but try to include it in the result
+                assert_eq!(buf.read_bytes_term(0, true, false, false).unwrap(), [5, 6]);
+                // Read to missing 0, try to consume and include it in the result
+                // Because we already at the end, an empty array is returned
+                assert_eq!(buf.read_bytes_term(0, true, true, false).unwrap(), []);
+            }
+        }
 
-    #[test]
-    #[should_panic]
-    fn read_strz_panic() {
-        let mut buf = Cursor::new(vec![49, 50, 51]); // no terminator
-        assert_eq!(buf.read_strz("utf-8", 0, false, true, true).unwrap(), "123");
+        mod with_eos_error {
+            use super::*;
+            use pretty_assertions::assert_eq;
+
+            #[test]
+            fn with_terminator() {
+                let mut buf = Cursor::new([
+                    1, 2, 3, 4, 0, // first chunk
+                    5, 6, 0, // second chunk
+                ]);
+                // Read to 0, but not consume it and not include in the result
+                assert_eq!(
+                    buf.read_bytes_term(0, false, false, true).unwrap(),
+                    [1, 2, 3, 4]
+                );
+                // Read to 0 and consume it, but do not include in the result.
+                // Because we already at 0, an empty array is returned
+                assert_eq!(buf.read_bytes_term(0, false, true, true).unwrap(), []);
+                // Read to second 0, include it to the result, but not consume
+                assert_eq!(
+                    buf.read_bytes_term(0, true, false, true).unwrap(),
+                    [5, 6, 0]
+                );
+                // Read to second 0 and consume it, and include in the result.
+                // Because we already at second 0, only it is returned
+                assert_eq!(buf.read_bytes_term(0, true, true, true).unwrap(), [0]);
+            }
+
+            #[test]
+            fn without_terminator() {
+                // Read to missing 0 lead to error
+                assert!(matches!(
+                    Cursor::new([1, 2]).read_bytes_term(0, false, false, true),
+                    Err(_)
+                ));
+                assert!(matches!(
+                    Cursor::new([3, 4]).read_bytes_term(0, false, true, true),
+                    Err(_)
+                ));
+                assert!(matches!(
+                    Cursor::new([5, 6]).read_bytes_term(0, true, false, true),
+                    Err(_)
+                ));
+                assert!(matches!(
+                    Cursor::new([7, 8]).read_bytes_term(0, true, true, true),
+                    Err(_)
+                ));
+            }
+        }
     }
 
     #[test]
     fn process_xor_one() {
-        let mut buf = Cursor::new(vec![]);
-        assert_eq!(buf.process_xor_one(vec![0, 0, 0, 0], 1), vec![1, 1, 1, 1]);
+        assert_eq!(crate::process_xor_one(&[0, 0, 0, 0], 1), [1, 1, 1, 1]);
     }
 
     #[test]
-    fn process_xor_one_many() {
-        let mut buf = Cursor::new(vec![]);
-        assert_eq!(buf.process_xor_many(vec![0, 0, 0, 0], vec![1, 2, 3, 4]),
-                   vec![1, 2, 3, 4]);
+    fn process_xor_many() {
+        assert_eq!(
+            crate::process_xor_many(&[0, 0, 0, 0], &[1, 2, 3, 4]),
+            [1, 2, 3, 4]
+        );
     }
 
     #[test]
     fn process_rotate_left() {
-        let mut buf = Cursor::new(vec![]);
-        assert_eq!(buf.process_rotate_left(vec![0b1111_0000, 0b0110_0110], 2, 1),
-                   vec![0b1100_0011, 0b1001_1001]);
-        assert_eq!(buf.process_rotate_left(vec![0b1111_0000, 0b0110_0110], -6, 1),
-                   vec![0b1100_0011, 0b1001_1001]);
+        assert_eq!(
+            crate::process_rotate_left(&[0b1111_0000, 0b0110_0110], 2, 1),
+            [0b1100_0011, 0b1001_1001]
+        );
+        assert_eq!(
+            crate::process_rotate_left(&[0b1111_0000, 0b0110_0110], -6, 1),
+            [0b1100_0011, 0b1001_1001]
+        );
     }
 
     #[test]
     fn process_zlib() {
-        let mut buf = Cursor::new(vec![]);
-        let arr = vec![120, 156, 75, 84, 40, 44, 205, 76, 206, 86, 72, 42, 202, 47, 207, 83, 72,
-                       203, 175, 80, 200, 42, 205, 45, 40, 86, 200, 47, 75, 45, 2, 0, 148, 189,
-                       10, 127];
-        let deflate = buf.process_zlib(arr).unwrap();
+        let arr = [
+            120, 156, 75, 84, 40, 44, 205, 76, 206, 86, 72, 42, 202, 47, 207, 83, 72, 203, 175, 80,
+            200, 42, 205, 45, 40, 86, 200, 47, 75, 45, 2, 0, 148, 189, 10, 127,
+        ];
+        let deflate = crate::process_zlib(&arr).unwrap();
         assert_eq!(deflate, "a quick brown fox jumps over".as_bytes())
     }
 }
