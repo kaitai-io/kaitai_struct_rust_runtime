@@ -7,6 +7,7 @@ pub use crate::kaitai_struct::KaitaiStruct;
 #[cfg(test)]
 mod tests {
     use crate::KaitaiStream;
+    use pretty_assertions::assert_eq;
     use std::io::Cursor;
 
     #[test]
