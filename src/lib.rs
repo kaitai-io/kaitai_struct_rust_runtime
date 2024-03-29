@@ -10,6 +10,8 @@
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 
+use std::num::ParseIntError;
+
 mod kaitai_stream;
 mod kaitai_struct;
 mod processors;
@@ -17,6 +19,60 @@ mod processors;
 pub use crate::kaitai_stream::KaitaiStream;
 pub use crate::kaitai_struct::KaitaiStruct;
 pub use crate::processors::*;
+
+/// Parse a value from a string in a given base to an integer.
+///
+/// This trait allows type deduction based on the returned value, in the same way,
+/// as [FromStr] did. It is implemented for all integer types and delegates
+/// conversion to their [`{integer}::from_str_radix`][m] methods.
+///
+/// # Examples
+/// Basic usage:
+/// ```
+/// # use kaitai_struct::FromStrRadix;
+/// # use pretty_assertions::assert_eq;
+/// // Unlike direct call to `usize::from_str_radix`, the resulting type here
+/// // dictated by the left side of assignment
+/// let n: Result<usize, _> = FromStrRadix::from_str_radix("A", 16);
+/// assert_eq!(n, Ok(10));
+/// ```
+///
+/// [FromStr]: std::str::FromStr
+/// [m]: usize::from_str_radix
+pub trait FromStrRadix: Sized {
+    /// Converts a string slice in a given base to an integer.
+    ///
+    /// The string is expected to be an optional `+` or `-` sign followed by digits.
+    /// Leading and trailing whitespace represent an error.
+    /// Digits are a subset of these characters, depending on radix:
+    ///
+    /// * `0-9`
+    /// * `a-z`
+    /// * `A-Z`
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `radix` is not in the range from 2 to 36.
+    fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError>;
+}
+
+macro_rules! impl_conversion {
+    ($($ty:ty)+) => {
+        $(
+            impl FromStrRadix for $ty {
+                #[inline(always)]
+                fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError> {
+                    Self::from_str_radix(src, radix)
+                }
+            }
+        )*
+    };
+}
+
+impl_conversion!(
+    u8 u16 u32 u64 u128 usize
+    i8 i16 i32 i64 i128 isize
+);
 
 #[cfg(test)]
 mod tests {
