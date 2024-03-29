@@ -1,17 +1,13 @@
-extern crate byteorder;
-extern crate encoding;
-extern crate flate2;
-
 mod kaitai_stream;
 mod kaitai_struct;
 
-pub use kaitai_stream::KaitaiStream;
-pub use kaitai_struct::KaitaiStruct;
+pub use crate::kaitai_stream::KaitaiStream;
+pub use crate::kaitai_struct::KaitaiStruct;
 
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use KaitaiStream;
+    use crate::KaitaiStream;
 
     #[test]
     fn test_seek() {

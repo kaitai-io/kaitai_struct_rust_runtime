@@ -8,7 +8,7 @@ use encoding::label::encoding_from_whatwg_label;
 macro_rules! read_endian {
     ($this:ident, $size:expr, $end:ident, $method:ident) => {{
         let mut buf = [0; $size];
-        try!($this.read_exact(&mut buf));
+        $this.read_exact(&mut buf)?;
         Ok($end::$method(&buf))
     }}
 }
