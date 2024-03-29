@@ -1,20 +1,21 @@
 use crate::kaitai_stream::KaitaiStream;
-use std;
+use std::fs::File;
+use std::io::{Cursor, Result};
 
 pub trait KaitaiStruct {
-    fn from_file(path: &str) -> std::io::Result<Self>
+    fn from_file(path: &str) -> Result<Self>
     where
         Self: Sized,
     {
-        let mut f = std::fs::File::open(path)?;
+        let mut f = File::open(path)?;
         Self::new(&mut f, &None, &None)
     }
 
-    fn from_bytes(bytes: Vec<u8>) -> std::io::Result<Self>
+    fn from_bytes(bytes: Vec<u8>) -> Result<Self>
     where
         Self: Sized,
     {
-        let mut b = std::io::Cursor::new(bytes);
+        let mut b = Cursor::new(bytes);
         Self::new(&mut b, &None, &None)
     }
 
@@ -22,7 +23,7 @@ pub trait KaitaiStruct {
         stream: &mut S,
         parent: &Option<Box<dyn KaitaiStruct>>,
         root: &Option<Box<dyn KaitaiStruct>>,
-    ) -> std::io::Result<Self>
+    ) -> Result<Self>
     where
         Self: Sized;
 
@@ -31,7 +32,7 @@ pub trait KaitaiStruct {
         stream: &mut S,
         parent: &Option<Box<dyn KaitaiStruct>>,
         root: &Option<Box<dyn KaitaiStruct>>,
-    ) -> std::io::Result<()>
+    ) -> Result<()>
     where
         Self: Sized;
 }
