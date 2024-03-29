@@ -291,7 +291,7 @@ pub trait KaitaiStream: Read + Seek {
                     result[i] = data[i].rotate_left(rot_amount as u32);
                 }
             }
-            _ => panic!("Unable to rotate a group of {} bytes yet", group_size),
+            _ => unimplemented!("Unable to rotate a group of {} bytes yet", group_size),
         }
         return result;
     }
