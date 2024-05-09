@@ -27,7 +27,6 @@ pub enum KError {
     MissingRoot,
     MissingParent,
     ReadBitsTooLarge { requested: usize },
-    UnexpectedContents { actual: Vec<u8> },
     ValidationNotEqual(String),
     UnknownVariant(i64),
     NoTerminatorFound,
