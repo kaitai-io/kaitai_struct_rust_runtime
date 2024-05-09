@@ -272,13 +272,10 @@ pub trait KStream {
         if self.get_state().bits_left > 0 {
             return false;
         }
-        self.pos() == self.size()
+        self.pos() >= self.size()
     }
 
     fn seek(&self, position: usize) -> KResult<()> {
-        if position > self.size() {
-            return Err(KError::Incomplete(Needed::Size(position - self.pos())));
-        }
         self.get_state_mut().pos = position;
         Ok(())
     }
@@ -453,7 +450,7 @@ pub trait KStream {
             }
         }
 
-        if self.pos() == self.size() {
+        if self.pos() >= self.size() {
             if eos_error {
                 return Err(KError::EncounteredEOF);
             }
@@ -911,10 +908,7 @@ mod tests {
         assert_eq!(reader.read_bytes(4).unwrap()[..], [2, 3, 4, 5]);
         reader.seek(pos).unwrap();
         assert_eq!(reader.read_bytes(4).unwrap()[..], [5, 6, 7, 8]);
-        assert_eq!(
-            reader.seek(9).unwrap_err(),
-            KError::Incomplete(Needed::Size(1))
-        );
+        reader.seek(9).unwrap();
     }
 
     use tempfile::tempdir;
@@ -952,9 +946,6 @@ mod tests {
         assert_eq!(reader.read_bytes(4).unwrap()[..], [2, 3, 4, 5]);
         reader.seek(pos).unwrap();
         assert_eq!(reader.read_bytes(4).unwrap()[..], [5, 6, 7, 8]);
-        assert_eq!(
-            reader.seek(9).unwrap_err(),
-            KError::Incomplete(Needed::Size(1))
-        );
+        reader.seek(9).unwrap();
     }
 }
