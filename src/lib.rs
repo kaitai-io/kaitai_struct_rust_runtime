@@ -33,7 +33,7 @@ pub enum KError {
     EncounteredEOF,
     IoError { desc: String },
     CastError,
-    UndecidedEndiannessError(String),
+    UndecidedEndianness(String),
 }
 pub type KResult<T> = Result<T, KError>;
 
