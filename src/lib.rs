@@ -30,7 +30,7 @@ pub enum KError {
     UnexpectedContents { actual: Vec<u8> },
     ValidationNotEqual(String),
     UnknownVariant(i64),
-    EncounteredEOF,
+    NoTerminatorFound,
     IoError { desc: String },
     CastError,
     UndecidedEndianness { src_path: String },
@@ -447,7 +447,7 @@ pub trait KStream {
 
         if self.pos() >= self.size() {
             if eos_error {
-                return Err(KError::EncounteredEOF);
+                return Err(KError::NoTerminatorFound);
             }
             Ok(readed_bytes)
         } else {
@@ -857,7 +857,7 @@ mod tests {
         );
         assert_eq!(
             reader.read_bytes_term(11, false, true, true).unwrap_err(),
-            KError::EncounteredEOF
+            KError::NoTerminatorFound
         );
         // restore position
         reader.seek(7);
