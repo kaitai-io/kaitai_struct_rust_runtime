@@ -28,7 +28,6 @@ pub enum KError {
     MissingParent,
     ReadBitsTooLarge { requested: usize },
     ValidationNotEqual(String),
-    UnknownVariant(i64),
     NoTerminatorFound,
     IoError { desc: String },
     CastError,
