@@ -18,14 +18,9 @@ use std::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum Needed {
-    Size(usize),
-    Unknown,
-}
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum KError {
-    Incomplete(Needed),
+    Eof { requested: usize, available: usize },
     EmptyIterator,
     Encoding { desc: String },
     MissingInstanceValue,
@@ -641,10 +636,12 @@ impl KStream for BytesReader {
 
     fn read_bytes(&self, len: usize) -> KResult<Vec<u8>> {
         // handle read beyond end of file
-        if len + self.pos() > self.size() {
-            return Err(KError::Incomplete(Needed::Size(
-                len + self.pos() - self.size(),
-            )));
+        let num_bytes_available = self.size().saturating_sub(self.pos());
+        if len > num_bytes_available {
+            return Err(KError::Eof {
+                requested: len,
+                available: num_bytes_available,
+            });
         }
         self.sync_pos()?;
         // let state = self.state.borrow_mut();
@@ -779,7 +776,10 @@ mod tests {
         assert_eq!(reader.read_bytes(3).unwrap()[..], [5, 6, 7]);
         assert_eq!(
             reader.read_bytes(4).unwrap_err(),
-            KError::Incomplete(Needed::Size(3))
+            KError::Eof {
+                requested: 4,
+                available: 1
+            }
         );
         assert_eq!(reader.read_bytes(1).unwrap()[..], [8]);
     }
@@ -931,7 +931,10 @@ mod tests {
         assert_eq!(reader.read_bytes(3).unwrap()[..], [5, 6, 7]);
         assert_eq!(
             reader.read_bytes(4).unwrap_err(),
-            KError::Incomplete(Needed::Size(3))
+            KError::Eof {
+                requested: 4,
+                available: 1
+            }
         );
         assert_eq!(reader.read_bytes(1).unwrap()[..], [8]);
     }
