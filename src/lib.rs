@@ -23,7 +23,6 @@ pub enum KError {
     Eof { requested: usize, available: usize },
     EmptyIterator,
     Encoding { desc: String },
-    MissingInstanceValue,
     MissingRoot,
     MissingParent,
     ReadBitsTooLarge { requested: usize },
