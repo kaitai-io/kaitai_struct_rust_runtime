@@ -26,13 +26,37 @@ pub enum KError {
     MissingRoot,
     MissingParent,
     ReadBitsTooLarge { requested: usize },
-    ValidationNotEqual(String),
+    ValidationFailed(ValidationFailedError),
     NoTerminatorFound,
     IoError { desc: String },
     CastError,
     UndecidedEndianness { src_path: String },
 }
 pub type KResult<T> = Result<T, KError>;
+
+/// Details of the failed validation.
+///
+/// <div class="warning">
+///
+/// The content of this struct is likely to change in future Kaitai Struct versions.
+///
+/// </div>
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ValidationFailedError {
+    pub kind: ValidationKind,
+    pub src_path: String,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[non_exhaustive]
+pub enum ValidationKind {
+    NotEqual,
+    LessThan,
+    GreaterThan,
+    NotAnyOf,
+    NotInEnum,
+    Expr,
+}
 
 pub trait CustomDecoder {
     fn decode(&self, bytes: &[u8]) -> Vec<u8>;
