@@ -722,7 +722,7 @@ pub fn decode_string(bytes: &Vec<u8>, label: &str) -> KResult<String> {
 }
 
 pub fn reverse_string<S: AsRef<str>>(s: S) -> KResult<String> {
-    Ok(s.as_ref().to_string().graphemes(true).rev().collect())
+    Ok(s.as_ref().graphemes(true).rev().collect())
 }
 
 pub fn modulo(a: i64, b: i64) -> i64 {
