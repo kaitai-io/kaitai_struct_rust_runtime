@@ -693,7 +693,7 @@ pub fn decode_string(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     }
 
     let enc = label.to_lowercase();
-    if enc == "cp437" {
+    if enc == "cp437" || enc == "ibm437" {
         use std::io::BufReader;
         let reader = BufReader::new(bytes.as_slice());
         let mut buffer = reader.bytes();
