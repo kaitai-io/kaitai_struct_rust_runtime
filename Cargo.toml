@@ -1,15 +1,17 @@
 [package]
-name = "kaitai_struct"
+name = "kaitai"
 version = "0.2.0"
-authors = [ "Kaitai Contributors" ]
-repository = "https://github.com/kaitai-io/kaitai_struct_rust_runtime"
-homepage = "http://kaitai.io"
-license = "MIT"
-readme = "README.md"
-documentation = "https://github.com/kaitai-io/kaitai_struct/wiki"
-description = "Rust runtime for Kaitai Struct"
+authors = ["Bradlee Speice <bradlee@speice.io>", "Aon"]
+edition = "2018"
 
 [dependencies]
-byteorder = "0.5"
-encoding = "0.2"
-flate2 = "0.2"
+byteorder = "1.3.1"
+encoding-next = "0.3"
+cp437 = "*"
+unicode-segmentation = "1.9.0"
+flate2 = "1.0"
+once_cell = "1.15.0"
+bytes = "1.3.0"
+
+[dev-dependencies]
+tempfile = "3.4.0"
