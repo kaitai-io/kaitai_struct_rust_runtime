@@ -1,3 +1,4 @@
+use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::ZlibDecoder;
 
 use std::{
@@ -5,8 +6,9 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     convert::TryInto,
     fmt,
-    io::{Read, Seek},
+    io::{Read, Seek, SeekFrom},
     ops::Deref,
+    path::Path,
     rc::{Rc, Weak},
 };
 use unicode_segmentation::UnicodeSegmentation;
@@ -262,8 +264,6 @@ impl KStruct for KStructUnit {
         Ok(())
     }
 }
-
-use std::path::Path;
 
 impl From<std::io::Error> for KError {
     fn from(err: std::io::Error) -> Self {
@@ -628,8 +628,6 @@ impl BytesReader {
     }
 }
 
-use std::io::SeekFrom;
-
 impl KStream for BytesReader {
     fn clone(&self) -> Self {
         Clone::clone(self)
@@ -686,9 +684,6 @@ impl KStream for BytesReader {
         Ok(buf)
     }
 }
-
-use encoding::label::encoding_from_whatwg_label;
-use encoding::DecoderTrap;
 
 pub fn decode_string(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     if let Some(enc) = encoding_from_whatwg_label(label) {
@@ -767,9 +762,9 @@ kf_min!(kf64_min, f64);
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-
     use super::*;
+    use std::io::Write;
+    use tempfile::tempdir;
 
     #[test]
     fn basic_strip_right() {
@@ -923,8 +918,6 @@ mod tests {
         assert_eq!(reader.read_bytes(4).unwrap()[..], [5, 6, 7, 8]);
         reader.seek(9).unwrap();
     }
-
-    use tempfile::tempdir;
 
     fn dump_and_open(bytes: &[u8]) -> BytesReader {
         let mut tmp_dir = tempdir().unwrap();
