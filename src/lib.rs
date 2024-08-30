@@ -1,4 +1,3 @@
-use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use flate2::read::ZlibDecoder;
 
 use std::{
@@ -298,57 +297,57 @@ pub trait KStream {
         Ok(self.read_bytes(1)?[0] as i8)
     }
     fn read_s2be(&self) -> KResult<i16> {
-        Ok(BigEndian::read_i16(&self.read_bytes(2)?))
+        Ok(i16::from_be_bytes(self.read_bytes(2)?.try_into().unwrap()))
     }
     fn read_s4be(&self) -> KResult<i32> {
-        Ok(BigEndian::read_i32(&self.read_bytes(4)?))
+        Ok(i32::from_be_bytes(self.read_bytes(4)?.try_into().unwrap()))
     }
     fn read_s8be(&self) -> KResult<i64> {
-        Ok(BigEndian::read_i64(&self.read_bytes(8)?))
+        Ok(i64::from_be_bytes(self.read_bytes(8)?.try_into().unwrap()))
     }
     fn read_s2le(&self) -> KResult<i16> {
-        Ok(LittleEndian::read_i16(&self.read_bytes(2)?))
+        Ok(i16::from_le_bytes(self.read_bytes(2)?.try_into().unwrap()))
     }
     fn read_s4le(&self) -> KResult<i32> {
-        Ok(LittleEndian::read_i32(&self.read_bytes(4)?))
+        Ok(i32::from_le_bytes(self.read_bytes(4)?.try_into().unwrap()))
     }
     fn read_s8le(&self) -> KResult<i64> {
-        Ok(LittleEndian::read_i64(&self.read_bytes(8)?))
+        Ok(i64::from_le_bytes(self.read_bytes(8)?.try_into().unwrap()))
     }
 
     fn read_u1(&self) -> KResult<u8> {
         Ok(self.read_bytes(1)?[0])
     }
     fn read_u2be(&self) -> KResult<u16> {
-        Ok(BigEndian::read_u16(&self.read_bytes(2)?))
+        Ok(u16::from_be_bytes(self.read_bytes(2)?.try_into().unwrap()))
     }
     fn read_u4be(&self) -> KResult<u32> {
-        Ok(BigEndian::read_u32(&self.read_bytes(4)?))
+        Ok(u32::from_be_bytes(self.read_bytes(4)?.try_into().unwrap()))
     }
     fn read_u8be(&self) -> KResult<u64> {
-        Ok(BigEndian::read_u64(&self.read_bytes(8)?))
+        Ok(u64::from_be_bytes(self.read_bytes(8)?.try_into().unwrap()))
     }
     fn read_u2le(&self) -> KResult<u16> {
-        Ok(LittleEndian::read_u16(&self.read_bytes(2)?))
+        Ok(u16::from_le_bytes(self.read_bytes(2)?.try_into().unwrap()))
     }
     fn read_u4le(&self) -> KResult<u32> {
-        Ok(LittleEndian::read_u32(&self.read_bytes(4)?))
+        Ok(u32::from_le_bytes(self.read_bytes(4)?.try_into().unwrap()))
     }
     fn read_u8le(&self) -> KResult<u64> {
-        Ok(LittleEndian::read_u64(&self.read_bytes(8)?))
+        Ok(u64::from_le_bytes(self.read_bytes(8)?.try_into().unwrap()))
     }
 
     fn read_f4be(&self) -> KResult<f32> {
-        Ok(BigEndian::read_f32(&self.read_bytes(4)?))
+        Ok(f32::from_be_bytes(self.read_bytes(4)?.try_into().unwrap()))
     }
     fn read_f8be(&self) -> KResult<f64> {
-        Ok(BigEndian::read_f64(&self.read_bytes(8)?))
+        Ok(f64::from_be_bytes(self.read_bytes(8)?.try_into().unwrap()))
     }
     fn read_f4le(&self) -> KResult<f32> {
-        Ok(LittleEndian::read_f32(&self.read_bytes(4)?))
+        Ok(f32::from_le_bytes(self.read_bytes(4)?.try_into().unwrap()))
     }
     fn read_f8le(&self) -> KResult<f64> {
-        Ok(LittleEndian::read_f64(&self.read_bytes(8)?))
+        Ok(f64::from_le_bytes(self.read_bytes(8)?.try_into().unwrap()))
     }
 
     fn get_state(&self) -> Ref<ReaderState>;
