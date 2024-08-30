@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use flate2::read::ZlibDecoder;
 use once_cell::unsync::OnceCell;
