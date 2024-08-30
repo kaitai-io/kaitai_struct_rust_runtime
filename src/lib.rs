@@ -1,18 +1,14 @@
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use flate2::read::ZlibDecoder;
-use once_cell::unsync::OnceCell;
 
 use std::{
     any::{type_name, Any},
-    borrow::Borrow,
+    cell::{Ref, RefCell, RefMut},
+    convert::TryInto,
     fmt,
     io::{Read, Seek},
-    ops::{Deref, DerefMut},
-    {
-        cell::{Ref, RefCell, RefMut},
-        rc::{Rc, Weak},
-        string::FromUtf16Error,
-    },
+    ops::Deref,
+    rc::{Rc, Weak},
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -268,7 +264,7 @@ impl KStruct for KStructUnit {
     }
 }
 
-use std::{fs, path::Path};
+use std::path::Path;
 
 impl From<std::io::Error> for KError {
     fn from(err: std::io::Error) -> Self {
@@ -633,7 +629,6 @@ impl BytesReader {
     }
 }
 
-use std::io::BufRead;
 use std::io::SeekFrom;
 
 impl KStream for BytesReader {
@@ -694,7 +689,7 @@ impl KStream for BytesReader {
 }
 
 use encoding::label::encoding_from_whatwg_label;
-use encoding::{DecoderTrap, Encoding};
+use encoding::DecoderTrap;
 
 pub fn decode_string(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     if let Some(enc) = encoding_from_whatwg_label(label) {
@@ -773,7 +768,7 @@ kf_min!(kf64_min, f64);
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::BorrowMut, clone, io::Write};
+    use std::io::Write;
 
     use super::*;
 
