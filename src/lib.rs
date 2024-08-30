@@ -71,8 +71,8 @@ impl<T> fmt::Debug for SharedType<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let w = &*self.0.borrow();
         match w.strong_count() {
-            _ => write!(f, "SharedType(Weak({:?}))", Weak::<T>::as_ptr(w)),
             0 => write!(f, "SharedType(Empty)"),
+            _ => write!(f, "SharedType(Weak({:?}))", Weak::<T>::as_ptr(w)),
         }
     }
 }
@@ -228,7 +228,7 @@ pub trait KStruct: Default {
             match t_any.downcast_ref::<Rc<U>>() {
                 Some(as_result) => SharedType::<U>::new(Rc::clone(as_result)),
                 None => {
-                    if (panic) {
+                    if panic {
                         #[cfg(feature = "type_name_of_val")]
                         panic!(
                             "`{}` is not a '{}' type",
@@ -390,7 +390,7 @@ pub trait KStream {
         }
 
         let mut inner = self.get_state_mut();
-        let mut mask = (1u64 << inner.bits_left) - 1;
+        let mask = (1u64 << inner.bits_left) - 1;
         inner.bits &= mask;
 
         Ok(res)
@@ -430,7 +430,7 @@ pub trait KStream {
         inner.bits_left = -bits_needed & 7;
 
         if n < 64 {
-            let mut mask = (1u64 << n) - 1;
+            let mask = (1u64 << n) - 1;
             res &= mask;
         }
 
@@ -516,7 +516,7 @@ pub trait KStream {
         for i in res.iter_mut() {
             *i ^= key[ki];
             ki += 1;
-            if (ki >= key.len()) {
+            if ki >= key.len() {
                 ki = 0;
             }
         }
@@ -769,7 +769,6 @@ mod tests {
     #[test]
     fn basic_strip_right() {
         let b = vec![1, 2, 3, 4, 5, 5, 5, 5];
-        let reader = BytesReader::from(vec![]);
         let c = BytesReader::bytes_strip_right(&b, 5);
 
         assert_eq!([1, 2, 3, 4], c[..]);
@@ -868,7 +867,7 @@ mod tests {
             KError::NoTerminatorFound
         );
         // restore position
-        reader.seek(7);
+        reader.seek(7).unwrap();
         assert_eq!(
             reader.read_bytes_term(9, true, true, false).unwrap()[..],
             [8, 9]
@@ -920,18 +919,18 @@ mod tests {
     }
 
     fn dump_and_open(bytes: &[u8]) -> BytesReader {
-        let mut tmp_dir = tempdir().unwrap();
+        let tmp_dir = tempdir().unwrap();
         let file_path = tmp_dir.path().join("test.txt");
         {
             let mut tmp_file = std::fs::File::create(file_path.clone()).unwrap();
-            tmp_file.write_all(bytes);
+            tmp_file.write_all(bytes).unwrap();
         }
         BytesReader::open(file_path).unwrap()
     }
 
     #[test]
     fn basic_read_bytes_file() {
-        let reader = dump_and_open(&vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        let reader = dump_and_open(&[1, 2, 3, 4, 5, 6, 7, 8]);
 
         assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
         assert_eq!(reader.read_bytes(3).unwrap()[..], [5, 6, 7]);
@@ -947,7 +946,7 @@ mod tests {
 
     #[test]
     fn basic_seek_file() {
-        let reader = dump_and_open(&vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        let reader = dump_and_open(&[1, 2, 3, 4, 5, 6, 7, 8]);
 
         assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
         let pos = reader.pos();
