@@ -472,62 +472,6 @@ pub trait KStream {
             buf.push(c);
         }
     }
-
-    /// Return a byte array that is sized to exclude all trailing instances of the
-    /// padding character.
-    fn bytes_strip_right(bytes: &Vec<u8>, pad: u8) -> Vec<u8> {
-        if let Some(last_non_pad_index) = bytes.iter().rposition(|&c| c != pad) {
-            bytes[..=last_non_pad_index].to_vec()
-        } else {
-            vec![]
-        }
-    }
-
-    /// Return a byte array that contains all bytes up until the
-    /// termination byte. Can optionally include the termination byte as well.
-    fn bytes_terminate(bytes: &Vec<u8>, term: u8, include_term: bool) -> Vec<u8> {
-        if let Some(term_index) = bytes.iter().position(|&c| c == term) {
-            &bytes[..term_index + if include_term { 1 } else { 0 }]
-        } else {
-            bytes
-        }.to_vec()
-    }
-
-    fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
-        let mut res = bytes.to_vec();
-        for i in res.iter_mut() {
-            *i ^= key;
-        }
-        res
-    }
-
-    fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
-        let mut res = bytes.to_vec();
-        let mut ki = 0;
-        for i in res.iter_mut() {
-            *i ^= key[ki];
-            ki += 1;
-            if ki >= key.len() {
-                ki = 0;
-            }
-        }
-        res
-    }
-
-    fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
-        let mut res = bytes.to_vec();
-        for i in res.iter_mut() {
-            *i = (*i << amount) | (*i >> (8 - amount));
-        }
-        res
-    }
-
-    fn process_zlib(bytes: &Vec<u8>) -> Vec<u8> {
-        let mut dec = ZlibDecoder::new(bytes.as_slice());
-        let mut dec_bytes = Vec::new();
-        dec.read_to_end(&mut dec_bytes);
-        dec_bytes
-    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -662,6 +606,26 @@ impl KStream for BytesReader {
     }
 }
 
+/// Return a byte array that is sized to exclude all trailing instances of the
+/// padding character.
+pub fn bytes_strip_right(bytes: &Vec<u8>, pad: u8) -> Vec<u8> {
+    if let Some(last_non_pad_index) = bytes.iter().rposition(|&c| c != pad) {
+        bytes[..=last_non_pad_index].to_vec()
+    } else {
+        vec![]
+    }
+}
+
+/// Return a byte array that contains all bytes up until the
+/// termination byte. Can optionally include the termination byte as well.
+pub fn bytes_terminate(bytes: &Vec<u8>, term: u8, include_term: bool) -> Vec<u8> {
+    if let Some(term_index) = bytes.iter().position(|&c| c == term) {
+        &bytes[..term_index + if include_term { 1 } else { 0 }]
+    } else {
+        bytes
+    }.to_vec()
+}
+
 pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     if let Some(enc) = encoding_from_whatwg_label(label) {
         return Ok(enc
@@ -680,6 +644,42 @@ pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     Err(KError::UnknownEncoding {
         name: label.to_string(),
     })
+}
+
+pub fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
+    let mut res = bytes.to_vec();
+    for i in res.iter_mut() {
+        *i ^= key;
+    }
+    res
+}
+
+pub fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
+    let mut res = bytes.to_vec();
+    let mut ki = 0;
+    for i in res.iter_mut() {
+        *i ^= key[ki];
+        ki += 1;
+        if ki >= key.len() {
+            ki = 0;
+        }
+    }
+    res
+}
+
+pub fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
+    let mut res = bytes.to_vec();
+    for i in res.iter_mut() {
+        *i = (*i << amount) | (*i >> (8 - amount));
+    }
+    res
+}
+
+pub fn process_zlib(bytes: &Vec<u8>) -> Vec<u8> {
+    let mut dec = ZlibDecoder::new(bytes.as_slice());
+    let mut dec_bytes = Vec::new();
+    dec.read_to_end(&mut dec_bytes);
+    dec_bytes
 }
 
 pub fn reverse_string<S: AsRef<str>>(s: S) -> KResult<String> {
@@ -743,7 +743,7 @@ mod tests {
     #[test]
     fn basic_strip_right() {
         let b = vec![1, 2, 3, 4, 5, 5, 5, 5];
-        let c = BytesReader::bytes_strip_right(&b, 5);
+        let c = bytes_strip_right(&b, 5);
 
         assert_eq!([1, 2, 3, 4], c[..]);
     }
@@ -856,7 +856,7 @@ mod tests {
     fn process_xor_one_test() {
         let b = vec![0x66];
         let reader = BytesReader::from(b);
-        let res = BytesReader::process_xor_one(&reader.read_bytes(1).unwrap(), 3);
+        let res = process_xor_one(&reader.read_bytes(1).unwrap(), 3);
         assert_eq!(0x65, res[0]);
     }
 
@@ -865,7 +865,7 @@ mod tests {
         let b = vec![0x66, 0x6F];
         let reader = BytesReader::from(b);
         let key: Vec<u8> = vec![3, 3];
-        let res = BytesReader::process_xor_many(&reader.read_bytes(2).unwrap(), &key);
+        let res = process_xor_many(&reader.read_bytes(2).unwrap(), &key);
         assert_eq!(vec![0x65, 0x6C], res);
     }
 
@@ -873,7 +873,7 @@ mod tests {
     fn process_rotate_left_test() {
         let b = vec![0x09, 0xAC];
         let reader = BytesReader::from(b);
-        let res = BytesReader::process_rotate_left(&reader.read_bytes(2).unwrap(), 3);
+        let res = process_rotate_left(&reader.read_bytes(2).unwrap(), 3);
         let expected: Vec<u8> = vec![0x48, 0x65];
         assert_eq!(expected, res);
     }
