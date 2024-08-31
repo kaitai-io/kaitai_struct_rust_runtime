@@ -580,9 +580,7 @@ impl From<&'static [u8]> for BytesReader {
 
 impl BytesReader {
     pub fn open<T: AsRef<Path>>(filename: T) -> KResult<Self> {
-        let f = std::fs::File::open(filename).map_err(|e| KError::IoError {
-            desc: e.to_string(),
-        })?;
+        let f = std::fs::File::open(filename)?;
         let file_size = f.metadata().unwrap().len();
         let r: Box<dyn ReadSeek> = Box::new(f);
         Ok(BytesReader {
@@ -607,17 +605,11 @@ impl BytesReader {
         let cur_pos = self
             .buf
             .borrow_mut()
-            .stream_position()
-            .map_err(|e| KError::IoError {
-                desc: e.to_string(),
-            })?;
+            .stream_position()?;
         if self.pos() != cur_pos as usize {
             self.buf
                 .borrow_mut()
-                .seek(SeekFrom::Start(self.pos() as u64))
-                .map_err(|e| KError::IoError {
-                    desc: e.to_string(),
-                })?;
+                .seek(SeekFrom::Start(self.pos() as u64))?;
         }
         Ok(())
     }
@@ -656,10 +648,7 @@ impl KStream for BytesReader {
         self
             .buf
             .borrow_mut()
-            .read_exact(&mut buf[..])
-            .map_err(|e| KError::IoError {
-                desc: e.to_string(),
-            })?;
+            .read_exact(&mut buf[..])?;
         self.get_state_mut().pos += len;
         Ok(buf)
     }
@@ -671,10 +660,7 @@ impl KStream for BytesReader {
         let readed = self
             .buf
             .borrow_mut()
-            .read_to_end(&mut buf)
-            .map_err(|e| KError::IoError {
-                desc: e.to_string(),
-            })?;
+            .read_to_end(&mut buf)?;
         self.get_state_mut().pos += readed;
         Ok(buf)
     }
