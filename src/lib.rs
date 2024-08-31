@@ -476,11 +476,11 @@ pub trait KStream {
     /// Return a byte array that is sized to exclude all trailing instances of the
     /// padding character.
     fn bytes_strip_right(bytes: &Vec<u8>, pad: u8) -> Vec<u8> {
-        let mut new_len = bytes.len();
-        while new_len > 0 && bytes[new_len - 1] == pad {
-            new_len -= 1;
+        if let Some(last_non_pad_index) = bytes.iter().rposition(|&c| c != pad) {
+            bytes[..=last_non_pad_index].to_vec()
+        } else {
+            vec![]
         }
-        bytes[..new_len].to_vec()
     }
 
     /// Return a byte array that contains all bytes up until the
