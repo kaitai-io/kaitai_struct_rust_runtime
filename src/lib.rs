@@ -568,8 +568,8 @@ impl From<Vec<u8>> for BytesReader {
     }
 }
 
-impl From<&'static [u8]> for BytesReader {
-    fn from(slice: &'static [u8]) -> BytesReader {
+impl From<&[u8]> for BytesReader {
+    fn from(slice: &[u8]) -> BytesReader {
         BytesReader::from_buffer(slice.to_vec())
     }
 }
