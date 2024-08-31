@@ -18,7 +18,7 @@ use unicode_segmentation::UnicodeSegmentation;
 pub enum KError {
     Eof { requested: usize, available: usize },
     EmptyIterator,
-    Encoding { desc: String },
+    UnknownEncoding { name: String },
     MissingRoot,
     MissingParent,
     ReadBitsTooLarge { requested: usize },
@@ -664,11 +664,9 @@ impl KStream for BytesReader {
 
 pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     if let Some(enc) = encoding_from_whatwg_label(label) {
-        return enc
+        return Ok(enc
             .decode(bytes.as_slice(), DecoderTrap::Replace)
-            .map_err(|e| KError::Encoding {
-                desc: e.to_string(),
-            });
+            .expect("this should never fail because we use DecoderTrap::Replace"));
     }
 
     let enc = label.to_lowercase();
@@ -680,8 +678,8 @@ pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
         return Ok(r.consume(bytes.len()));
     }
 
-    Err(KError::Encoding {
-        desc: format!("bytes_to_str: unknown WHATWG Encoding standard: {}", label),
+    Err(KError::UnknownEncoding {
+        name: label.to_string(),
     })
 }
 
