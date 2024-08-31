@@ -25,6 +25,7 @@ pub enum KError {
     ValidationFailed(ValidationFailedError),
     NoTerminatorFound,
     IoError { desc: String },
+    BytesDecodingError { msg: String },
     CastError,
     UndecidedEndianness { src_path: String },
 }
@@ -55,7 +56,7 @@ pub enum ValidationKind {
 }
 
 pub trait CustomDecoder {
-    fn decode(&self, bytes: &[u8]) -> Vec<u8>;
+    fn decode(&self, bytes: &[u8]) -> Result<Vec<u8>, String>;
 }
 
 #[derive(Default)]
@@ -675,11 +676,11 @@ pub fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
     res
 }
 
-pub fn process_zlib(bytes: &Vec<u8>) -> Vec<u8> {
+pub fn process_zlib(bytes: &Vec<u8>) -> Result<Vec<u8>, String> {
     let mut dec = ZlibDecoder::new(bytes.as_slice());
     let mut dec_bytes = Vec::new();
-    dec.read_to_end(&mut dec_bytes);
-    dec_bytes
+    dec.read_to_end(&mut dec_bytes).map_err(|e| e.to_string())?;
+    Ok(dec_bytes)
 }
 
 pub fn reverse_string<S: AsRef<str>>(s: S) -> KResult<String> {
