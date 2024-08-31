@@ -688,11 +688,7 @@ pub fn reverse_string<S: AsRef<str>>(s: S) -> KResult<String> {
 }
 
 pub fn modulo(a: i64, b: i64) -> i64 {
-    let mut r = a % b;
-    if r < 0 {
-        r += b;
-    }
-    r
+    a.rem_euclid(b)
 }
 
 macro_rules! kf_max {
