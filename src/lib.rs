@@ -653,14 +653,14 @@ impl KStream for BytesReader {
         // let state = self.state.borrow_mut();
         // state.buf.resize(len, 0);
         let mut buf = vec![0; len];
-        let readed = self
+        self
             .buf
             .borrow_mut()
-            .read(&mut buf[..])
+            .read_exact(&mut buf[..])
             .map_err(|e| KError::IoError {
                 desc: e.to_string(),
             })?;
-        self.get_state_mut().pos += readed;
+        self.get_state_mut().pos += len;
         Ok(buf)
     }
 
