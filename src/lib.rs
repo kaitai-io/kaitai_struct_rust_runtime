@@ -485,16 +485,11 @@ pub trait KStream {
     /// Return a byte array that contains all bytes up until the
     /// termination byte. Can optionally include the termination byte as well.
     fn bytes_terminate(bytes: &Vec<u8>, term: u8, include_term: bool) -> Vec<u8> {
-        let mut new_len = 0;
-        while bytes[new_len] != term && new_len < bytes.len() {
-            new_len += 1;
-        }
-
-        if include_term && new_len < bytes.len() {
-            new_len += 1;
-        }
-
-        bytes[..new_len].to_vec()
+        if let Some(term_index) = bytes.iter().position(|&c| c == term) {
+            &bytes[..term_index + if include_term { 1 } else { 0 }]
+        } else {
+            bytes
+        }.to_vec()
     }
 
     fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
