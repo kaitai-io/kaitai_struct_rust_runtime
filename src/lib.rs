@@ -661,7 +661,7 @@ impl KStream for BytesReader {
     }
 }
 
-pub fn decode_string(bytes: &Vec<u8>, label: &str) -> KResult<String> {
+pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     if let Some(enc) = encoding_from_whatwg_label(label) {
         return enc
             .decode(bytes.as_slice(), DecoderTrap::Replace)
@@ -680,7 +680,7 @@ pub fn decode_string(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     }
 
     Err(KError::Encoding {
-        desc: format!("decode_string: unknown WHATWG Encoding standard: {}", label),
+        desc: format!("bytes_to_str: unknown WHATWG Encoding standard: {}", label),
     })
 }
 
