@@ -564,13 +564,13 @@ pub struct BytesReader {
 
 impl From<Vec<u8>> for BytesReader {
     fn from(bytes: Vec<u8>) -> BytesReader {
-        BytesReader::from_buffer(&bytes)
+        BytesReader::from_buffer(bytes)
     }
 }
 
 impl From<&'static [u8]> for BytesReader {
     fn from(slice: &'static [u8]) -> BytesReader {
-        BytesReader::from_buffer(slice)
+        BytesReader::from_buffer(slice.to_vec())
     }
 }
 
@@ -586,9 +586,9 @@ impl BytesReader {
         })
     }
 
-    fn from_buffer(bytes: &[u8]) -> Self {
+    fn from_buffer(bytes: Vec<u8>) -> Self {
         let file_size = bytes.len() as u64;
-        let r: Box<dyn ReadSeek> = Box::new(std::io::Cursor::new(bytes.to_vec()));
+        let r: Box<dyn ReadSeek> = Box::new(std::io::Cursor::new(bytes));
         BytesReader {
             state: RefCell::new(ReaderState::default()),
             file_size,
