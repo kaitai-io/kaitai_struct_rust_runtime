@@ -669,8 +669,7 @@ pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
             .expect("this should never fail because we use DecoderTrap::Replace"));
     }
 
-    let enc = label.to_lowercase();
-    if enc == "cp437" || enc == "ibm437" {
+    if label.eq_ignore_ascii_case("cp437") || label.eq_ignore_ascii_case("ibm437") {
         use std::io::BufReader;
         let reader = BufReader::new(bytes.as_slice());
         let mut buffer = reader.bytes();
