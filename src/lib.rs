@@ -447,33 +447,28 @@ pub trait KStream {
         consume: bool,
         eos_error: bool,
     ) -> KResult<Vec<u8>> {
-        let mut readed_bytes: Vec<u8> = Vec::new();
-        while self.pos() < self.size() {
-            let bytes = self.read_bytes(1)?;
-            if bytes[0] != term {
-                readed_bytes.push(bytes[0]);
-            } else {
-                // undo last readed byte
-                self.get_state_mut().pos -= 1;
-                break;
+        let mut buf = vec![];
+        loop {
+            let c = match self.read_u1() {
+                Ok(c) => c,
+                Err(KError::Eof { .. }) => {
+                    if eos_error {
+                        return Err(KError::NoTerminatorFound);
+                    }
+                    return Ok(buf);
+                }
+                Err(e) => return Err(e),
+            };
+            if c == term {
+                if include {
+                    buf.push(c);
+                }
+                if !consume {
+                    self.get_state_mut().pos -= 1;
+                }
+                return Ok(buf);
             }
-        }
-
-        if self.pos() >= self.size() {
-            if eos_error {
-                return Err(KError::NoTerminatorFound);
-            }
-            Ok(readed_bytes)
-        } else {
-            // consume terminator?
-            if consume {
-                self.get_state_mut().pos += 1;
-            }
-            // but return or not 'term' symbol depend on 'include' flag
-            if include {
-                readed_bytes.push(term);
-            }
-            Ok(readed_bytes)
+            buf.push(c);
         }
     }
 
