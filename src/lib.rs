@@ -14,6 +14,7 @@ use std::{
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[non_exhaustive]
 pub enum KError {
     Eof { requested: usize, available: usize },
     EmptyIterator,
