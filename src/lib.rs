@@ -370,15 +370,15 @@ pub trait KStream {
             return Err(KError::ReadBitsTooLarge { requested: n });
         }
 
-        let n = n as i64;
+        let n: i32 = n.try_into().unwrap();
         let bits_needed = n - self.get_state().bits_left;
         self.get_state_mut().bits_left = -bits_needed & 7;
 
         if bits_needed > 0 {
             let bytes_needed = ((bits_needed - 1) / 8) + 1;
-            let buf = self.read_bytes(bytes_needed as usize)?;
+            let buf = self.read_bytes(bytes_needed.try_into().unwrap())?;
             for b in buf {
-                res = res << 8 | (b as u64);
+                res = res << 8 | u64::from(b);
             }
             let mut inner = self.get_state_mut();
             let new_bits = res;
@@ -405,14 +405,14 @@ pub trait KStream {
             return Err(KError::ReadBitsTooLarge { requested: n });
         }
 
-        let n = n as i64;
+        let n: i32 = n.try_into().unwrap();
         let bits_needed = n - self.get_state().bits_left;
 
         if bits_needed > 0 {
             let bytes_needed = ((bits_needed - 1) / 8) + 1;
-            let buf = self.read_bytes(bytes_needed as usize)?;
-            for i in 0..bytes_needed {
-                res |= (buf[i as usize] as u64) << (i * 8);
+            let buf = self.read_bytes(bytes_needed.try_into().unwrap())?;
+            for (i, &b) in buf.iter().enumerate() {
+                res |= u64::from(b) << (i * 8);
             }
             let mut inner = self.get_state_mut();
             let new_bits = if bits_needed < 64 {
@@ -428,8 +428,7 @@ pub trait KStream {
             inner.bits >>= n;
         }
 
-        let mut inner = self.get_state_mut();
-        inner.bits_left = -bits_needed & 7;
+        self.get_state_mut().bits_left = -bits_needed & 7;
 
         if n < 64 {
             let mask = (1u64 << n) - 1;
@@ -479,7 +478,7 @@ pub trait KStream {
 pub struct ReaderState {
     pos: usize,
     bits: u64,
-    bits_left: i64,
+    bits_left: i32,
 }
 
 trait ReadSeek: Read + Seek {}
