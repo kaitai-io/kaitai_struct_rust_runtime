@@ -24,7 +24,7 @@ pub enum KError {
     ReadBitsTooLarge { requested: usize },
     ValidationFailed(ValidationFailedError),
     NoTerminatorFound,
-    IoError { desc: String },
+    IoError { msg: String },
     BytesDecodingError { msg: String },
     CastError,
     UndecidedEndianness { src_path: String },
@@ -270,7 +270,7 @@ impl KStruct for KStructUnit {
 impl From<std::io::Error> for KError {
     fn from(err: std::io::Error) -> Self {
         Self::IoError {
-            desc: err.to_string(),
+            msg: err.to_string(),
         }
     }
 }
