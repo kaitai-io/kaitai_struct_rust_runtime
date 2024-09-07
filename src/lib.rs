@@ -648,7 +648,7 @@ pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
 
 pub fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
     let mut res = bytes.to_vec();
-    for i in res.iter_mut() {
+    for i in &mut res {
         *i ^= key;
     }
     res
@@ -657,7 +657,7 @@ pub fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
 pub fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
     let mut res = bytes.to_vec();
     let mut ki = 0;
-    for i in res.iter_mut() {
+    for i in &mut res {
         *i ^= key[ki];
         ki += 1;
         if ki >= key.len() {
@@ -669,7 +669,7 @@ pub fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
 
 pub fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
     let mut res = bytes.to_vec();
-    for i in res.iter_mut() {
+    for i in &mut res {
         *i = (*i << amount) | (*i >> (8 - amount));
     }
     res
