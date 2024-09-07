@@ -690,46 +690,6 @@ pub fn modulo(a: i64, b: i64) -> i64 {
     a.rem_euclid(b)
 }
 
-macro_rules! kf_max {
-    ($i: ident, $t: ty) => {
-        pub fn $i<'a>(first: Option<&'a $t>, second: &'a $t) -> Option<&'a $t> {
-            if second.is_nan() {
-                first
-            } else if first.is_none() {
-                Some(second)
-            } else {
-                if first.unwrap() < second {
-                    Some(second)
-                } else {
-                    first
-                }
-            }
-        }
-    };
-}
-kf_max!(kf32_max, f32);
-kf_max!(kf64_max, f64);
-
-macro_rules! kf_min {
-    ($i: ident, $t: ty) => {
-        pub fn $i<'a>(first: Option<&'a $t>, second: &'a $t) -> Option<&'a $t> {
-            if second.is_nan() {
-                first
-            } else if first.is_none() {
-                Some(second)
-            } else {
-                if first.unwrap() < second {
-                    first
-                } else {
-                    Some(second)
-                }
-            }
-        }
-    };
-}
-kf_min!(kf32_min, f32);
-kf_min!(kf64_min, f64);
-
 #[cfg(test)]
 mod tests {
     use super::*;
