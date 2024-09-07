@@ -670,7 +670,7 @@ pub fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
 pub fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
     let mut res = bytes.to_vec();
     for i in &mut res {
-        *i = (*i << amount) | (*i >> (8 - amount));
+        *i = i.rotate_left(amount.into());
     }
     res
 }
