@@ -169,7 +169,6 @@ impl<T> From<T> for OptRc<T> {
 impl<T> Deref for OptRc<T> {
     type Target = T;
 
-    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         self.0.as_ref().unwrap()
     }
