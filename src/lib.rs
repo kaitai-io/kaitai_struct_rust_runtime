@@ -1,6 +1,5 @@
 use encoding::{label::encoding_from_whatwg_label, DecoderTrap};
 use flate2::read::ZlibDecoder;
-
 use std::{
     any::{type_name, Any},
     cell::{Ref, RefCell, RefMut},
@@ -542,10 +541,7 @@ impl BytesReader {
 
     // sync stream pos with state.pos
     fn sync_pos(&self) -> KResult<()> {
-        let cur_pos = self
-            .buf
-            .borrow_mut()
-            .stream_position()?;
+        let cur_pos = self.buf.borrow_mut().stream_position()?;
         if self.pos() != cur_pos as usize {
             self.buf
                 .borrow_mut()
@@ -585,10 +581,7 @@ impl KStream for BytesReader {
         // let state = self.state.borrow_mut();
         // state.buf.resize(len, 0);
         let mut buf = vec![0; len];
-        self
-            .buf
-            .borrow_mut()
-            .read_exact(&mut buf[..])?;
+        self.buf.borrow_mut().read_exact(&mut buf[..])?;
         self.get_state_mut().pos += len;
         Ok(buf)
     }
@@ -597,10 +590,7 @@ impl KStream for BytesReader {
         self.sync_pos()?;
         //let state = self.state.borrow_mut();
         let mut buf = Vec::new();
-        let readed = self
-            .buf
-            .borrow_mut()
-            .read_to_end(&mut buf)?;
+        let readed = self.buf.borrow_mut().read_to_end(&mut buf)?;
         self.get_state_mut().pos += readed;
         Ok(buf)
     }
@@ -623,7 +613,8 @@ pub fn bytes_terminate(bytes: &Vec<u8>, term: u8, include_term: bool) -> Vec<u8>
         &bytes[..term_index + if include_term { 1 } else { 0 }]
     } else {
         bytes
-    }.to_vec()
+    }
+    .to_vec()
 }
 
 pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
