@@ -119,8 +119,8 @@ pub struct OptRc<T>(Option<Rc<T>>);
 impl<T> OptRc<T> {
     pub fn new(orc: &Option<Rc<T>>) -> Self {
         match orc {
-            Some(rc) => OptRc::from(rc.clone()),
-            None => OptRc::default(),
+            Some(rc) => Self::from(rc.clone()),
+            None => Self::default(),
         }
     }
 
@@ -144,25 +144,25 @@ impl<T> OptRc<T> {
 impl<T> Default for OptRc<T> {
     #[inline]
     fn default() -> Self {
-        OptRc(None)
+        Self(None)
     }
 }
 
 impl<T> Clone for OptRc<T> {
     fn clone(&self) -> Self {
-        OptRc(self.0.clone())
+        Self(self.0.clone())
     }
 }
 
 impl<T> From<Rc<T>> for OptRc<T> {
     fn from(value: Rc<T>) -> Self {
-        OptRc(Some(value))
+        Self(Some(value))
     }
 }
 
 impl<T> From<T> for OptRc<T> {
     fn from(value: T) -> Self {
-        OptRc(Some(value.into()))
+        Self(Some(value.into()))
     }
 }
 
@@ -257,8 +257,8 @@ pub trait KStruct: Default {
 pub struct KStructUnit;
 
 impl KStruct for KStructUnit {
-    type Root = KStructUnit;
-    type Parent = KStructUnit;
+    type Root = Self;
+    type Parent = Self;
 
     fn read<S: KStream>(
         _self_rc: &OptRc<Self>,
@@ -511,14 +511,14 @@ pub struct BytesReader {
 }
 
 impl From<Vec<u8>> for BytesReader {
-    fn from(bytes: Vec<u8>) -> BytesReader {
-        BytesReader::from_buffer(bytes)
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::from_buffer(bytes)
     }
 }
 
 impl From<&[u8]> for BytesReader {
-    fn from(slice: &[u8]) -> BytesReader {
-        BytesReader::from_buffer(slice.to_vec())
+    fn from(slice: &[u8]) -> Self {
+        Self::from_buffer(slice.to_vec())
     }
 }
 
@@ -527,7 +527,7 @@ impl BytesReader {
         let file = std::fs::File::open(filename)?;
         let file_size = file.metadata().unwrap().len();
         let readseek: Box<dyn ReadSeek> = Box::new(file);
-        Ok(BytesReader {
+        Ok(Self {
             state: RefCell::new(ReaderState::default()),
             file_size,
             buf: OptRc::from(RefCell::new(readseek)),
@@ -537,7 +537,7 @@ impl BytesReader {
     fn from_buffer(bytes: Vec<u8>) -> Self {
         let file_size = bytes.len() as u64;
         let readseek: Box<dyn ReadSeek> = Box::new(std::io::Cursor::new(bytes));
-        BytesReader {
+        Self {
             state: RefCell::new(ReaderState::default()),
             file_size,
             buf: OptRc::from(RefCell::new(readseek)),
