@@ -616,7 +616,7 @@ pub fn bytes_strip_right(bytes: &Vec<u8>, pad: u8) -> Vec<u8> {
 #[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument and result
 pub fn bytes_terminate(bytes: &Vec<u8>, term: u8, include_term: bool) -> Vec<u8> {
     if let Some(term_index) = bytes.iter().position(|&byte| byte == term) {
-        &bytes[..term_index + if include_term { 1 } else { 0 }]
+        &bytes[..term_index + usize::from(include_term)]
     } else {
         bytes
     }

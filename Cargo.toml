@@ -16,6 +16,7 @@ unused_qualifications = "warn"
 [lints.clippy]
 min_ident_chars = "warn"
 
+bool_to_int_with_if = "warn"
 semicolon_if_nothing_returned = "warn"
 unreadable_literal = "warn"
 
