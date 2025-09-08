@@ -15,6 +15,7 @@ unsafe_code = "forbid"
 unused_qualifications = "warn"
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
+str_to_string = "warn"
 min_ident_chars = "warn"
 precedence_bits = "warn"
 

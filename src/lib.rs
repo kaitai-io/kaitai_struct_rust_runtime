@@ -643,7 +643,7 @@ pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     }
 
     Err(KError::UnknownEncoding {
-        name: label.to_string(),
+        name: label.to_owned(),
     })
 }
 
