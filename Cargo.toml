@@ -11,6 +11,8 @@ type_name_of_val = []
 [lints.rust]
 unsafe_code = "forbid"
 unused_qualifications = "warn"
+[lints.clippy]
+min_ident_chars = "warn"
 
 [dependencies]
 encoding-next = "0.3"
