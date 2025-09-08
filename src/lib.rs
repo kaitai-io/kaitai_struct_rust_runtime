@@ -253,7 +253,7 @@ pub trait KStruct: Default {
 /// Dummy struct used to indicate an absence of value; needed for
 /// root structs to satisfy the associated type bounds in the
 /// `KStruct` trait.
-#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub struct KStructUnit;
 
 impl KStruct for KStructUnit {
