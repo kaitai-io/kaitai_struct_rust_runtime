@@ -234,6 +234,7 @@ pub trait KStruct: Default {
                 Some(as_result) => SharedType::<U>::new(as_result.clone()),
                 None => {
                     #[allow(clippy::incompatible_msrv)] // behind feature flag
+                    #[allow(clippy::manual_assert)]
                     if panic {
                         #[cfg(feature = "type_name_of_val")]
                         panic!(
