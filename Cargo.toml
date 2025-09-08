@@ -9,6 +9,7 @@ rust-version = "1.63"
 type_name_of_val = []
 
 [lints.rust]
+redundant_imports = "warn"
 unsafe_code = "forbid"
 unused_qualifications = "warn"
 [lints.clippy]

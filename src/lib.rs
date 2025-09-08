@@ -3,7 +3,6 @@ use flate2::read::ZlibDecoder;
 use std::{
     any::{type_name, Any},
     cell::{Ref, RefCell, RefMut},
-    convert::TryInto,
     fmt,
     io::{Read, Seek, SeekFrom},
     ops::Deref,
