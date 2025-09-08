@@ -117,6 +117,7 @@ impl<T> SharedType<T> {
 pub struct OptRc<T>(Option<Rc<T>>);
 
 impl<T> OptRc<T> {
+    #[allow(clippy::ref_option)] // TODO: breaking change
     pub fn new(orc: &Option<Rc<T>>) -> Self {
         match orc {
             Some(rc) => Self::from(rc.clone()),
@@ -128,6 +129,7 @@ impl<T> OptRc<T> {
         self.0.as_ref().unwrap().clone()
     }
 
+    #[allow(clippy::ref_option)] // TODO: breaking change
     pub fn get_value(&self) -> &Option<Rc<T>> {
         &self.0
     }
@@ -688,6 +690,7 @@ pub fn process_zlib(bytes: &Vec<u8>) -> Result<Vec<u8>, String> {
     Ok(dec_bytes)
 }
 
+#[allow(clippy::unnecessary_wraps)] // TODO: breaking change
 pub fn reverse_string<S: AsRef<str>>(str: S) -> KResult<String> {
     Ok(str.as_ref().graphemes(true).rev().collect())
 }

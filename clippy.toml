@@ -1,0 +1,1 @@
+avoid-breaking-exported-api = true # TODO: change (and keep) to false on breaking change release
