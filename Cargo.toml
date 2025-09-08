@@ -17,6 +17,8 @@ unused_qualifications = "warn"
 min_ident_chars = "warn"
 
 bool_to_int_with_if = "warn"
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
 inline_always = "warn"
 manual_assert = "warn"
 needless_pass_by_value = "warn"

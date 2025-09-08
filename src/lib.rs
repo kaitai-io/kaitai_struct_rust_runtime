@@ -298,6 +298,7 @@ pub trait KStream {
         self.get_state().pos
     }
 
+    #[allow(clippy::cast_possible_wrap)] // This is wanted here
     fn read_s1(&self) -> KResult<i8> {
         Ok(self.read_bytes(1)?[0] as i8)
     }
@@ -543,7 +544,8 @@ impl BytesReader {
         }
     }
 
-    // sync stream pos with state.pos
+    /// sync stream pos with state.pos
+    #[allow(clippy::cast_possible_truncation)] // TODO: use u64 for pos
     fn sync_pos(&self) -> KResult<()> {
         let cur_pos = self.buf.borrow_mut().stream_position()?;
         if self.pos() != cur_pos as usize {
@@ -568,6 +570,7 @@ impl KStream for BytesReader {
         self.state.borrow_mut()
     }
 
+    #[allow(clippy::cast_possible_truncation)] // TODO: return as u64
     fn size(&self) -> usize {
         self.file_size as usize
     }
