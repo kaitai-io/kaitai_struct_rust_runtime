@@ -14,17 +14,13 @@ trivial_casts = "warn"
 unsafe_code = "forbid"
 unused_qualifications = "warn"
 [lints.clippy]
+pedantic = { level = "warn", priority = -1 }
 min_ident_chars = "warn"
 
-bool_to_int_with_if = "warn"
-cast_possible_truncation = "warn"
-cast_possible_wrap = "warn"
-inline_always = "warn"
-manual_assert = "warn"
-needless_pass_by_value = "warn"
-semicolon_if_nothing_returned = "warn"
-single_match_else = "warn"
-unreadable_literal = "warn"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+used_underscore_binding = "allow" # _io and so on are the same as on other reader implementations
 
 [dependencies]
 encoding-next = "0.3"

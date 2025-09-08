@@ -647,7 +647,7 @@ pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     })
 }
 
-#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument
+#[allow(clippy::ptr_arg, clippy::implicit_clone)] // TODO: use &[u8] as argument
 pub fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
     let mut res = bytes.to_vec();
     for i in &mut res {
@@ -656,7 +656,7 @@ pub fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
     res
 }
 
-#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument
+#[allow(clippy::ptr_arg, clippy::implicit_clone)] // TODO: use &[u8] as argument
 pub fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
     let mut res = bytes.to_vec();
     let mut ki = 0;
@@ -670,7 +670,7 @@ pub fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
     res
 }
 
-#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument
+#[allow(clippy::ptr_arg, clippy::implicit_clone)] // TODO: use &[u8] as argument
 pub fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
     let mut res = bytes.to_vec();
     for i in &mut res {
