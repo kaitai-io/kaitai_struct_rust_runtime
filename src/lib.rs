@@ -229,6 +229,7 @@ pub trait KStruct: Default {
             match t_any.downcast_ref::<Rc<U>>() {
                 Some(as_result) => SharedType::<U>::new(Rc::clone(as_result)),
                 None => {
+                    #[allow(clippy::incompatible_msrv)] // behind feature flag
                     if panic {
                         #[cfg(feature = "type_name_of_val")]
                         panic!(
@@ -351,8 +352,8 @@ pub trait KStream {
         Ok(f64::from_le_bytes(self.read_bytes(8)?.try_into().unwrap()))
     }
 
-    fn get_state(&self) -> Ref<ReaderState>;
-    fn get_state_mut(&self) -> RefMut<ReaderState>;
+    fn get_state(&self) -> Ref<'_, ReaderState>;
+    fn get_state_mut(&self) -> RefMut<'_, ReaderState>;
 
     fn align_to_byte(&self) -> KResult<()> {
         let mut inner = self.get_state_mut();
@@ -556,11 +557,11 @@ impl KStream for BytesReader {
         Clone::clone(self)
     }
 
-    fn get_state(&self) -> Ref<ReaderState> {
+    fn get_state(&self) -> Ref<'_, ReaderState> {
         self.state.borrow()
     }
 
-    fn get_state_mut(&self) -> RefMut<ReaderState> {
+    fn get_state_mut(&self) -> RefMut<'_, ReaderState> {
         self.state.borrow_mut()
     }
 
@@ -598,6 +599,7 @@ impl KStream for BytesReader {
 
 /// Return a byte array that is sized to exclude all trailing instances of the
 /// padding character.
+#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument and result
 pub fn bytes_strip_right(bytes: &Vec<u8>, pad: u8) -> Vec<u8> {
     if let Some(last_non_pad_index) = bytes.iter().rposition(|&c| c != pad) {
         bytes[..=last_non_pad_index].to_vec()
@@ -608,6 +610,7 @@ pub fn bytes_strip_right(bytes: &Vec<u8>, pad: u8) -> Vec<u8> {
 
 /// Return a byte array that contains all bytes up until the
 /// termination byte. Can optionally include the termination byte as well.
+#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument and result
 pub fn bytes_terminate(bytes: &Vec<u8>, term: u8, include_term: bool) -> Vec<u8> {
     if let Some(term_index) = bytes.iter().position(|&c| c == term) {
         &bytes[..term_index + if include_term { 1 } else { 0 }]
@@ -617,10 +620,11 @@ pub fn bytes_terminate(bytes: &Vec<u8>, term: u8, include_term: bool) -> Vec<u8>
     .to_vec()
 }
 
+#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument
 pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     if let Some(enc) = encoding_from_whatwg_label(label) {
         return Ok(enc
-            .decode(bytes.as_slice(), DecoderTrap::Replace)
+            .decode(bytes, DecoderTrap::Replace)
             .expect("this should never fail because we use DecoderTrap::Replace"));
     }
 
@@ -637,6 +641,7 @@ pub fn bytes_to_str(bytes: &Vec<u8>, label: &str) -> KResult<String> {
     })
 }
 
+#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument
 pub fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
     let mut res = bytes.to_vec();
     for i in &mut res {
@@ -645,6 +650,7 @@ pub fn process_xor_one(bytes: &Vec<u8>, key: u8) -> Vec<u8> {
     res
 }
 
+#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument
 pub fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
     let mut res = bytes.to_vec();
     let mut ki = 0;
@@ -658,6 +664,7 @@ pub fn process_xor_many(bytes: &Vec<u8>, key: &[u8]) -> Vec<u8> {
     res
 }
 
+#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument
 pub fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
     let mut res = bytes.to_vec();
     for i in &mut res {
@@ -666,6 +673,7 @@ pub fn process_rotate_left(bytes: &Vec<u8>, amount: u8) -> Vec<u8> {
     res
 }
 
+#[allow(clippy::ptr_arg)] // TODO: use &[u8] as argument
 pub fn process_zlib(bytes: &Vec<u8>) -> Result<Vec<u8>, String> {
     let mut dec = ZlibDecoder::new(bytes.as_slice());
     let mut dec_bytes = Vec::new();

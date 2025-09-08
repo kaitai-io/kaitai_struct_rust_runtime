@@ -5,6 +5,9 @@ authors = ["Bradlee Speice <bradlee@speice.io>", "Aon"]
 edition = "2021"
 rust-version = "1.63"
 
+[features]
+type_name_of_val = []
+
 [dependencies]
 encoding-next = "0.3"
 cp437 = "0.1"
