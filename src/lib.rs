@@ -227,7 +227,7 @@ pub trait KStruct: Default {
         if let Some(rc) = opt_rc {
             rc
         } else {
-            let fallback_any = &fallback.get() as &dyn Any;
+            let fallback_any: &dyn Any = &fallback.get();
             //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
             match fallback_any.downcast_ref::<Rc<U>>() {
                 Some(as_result) => SharedType::<U>::new(Rc::clone(as_result)),

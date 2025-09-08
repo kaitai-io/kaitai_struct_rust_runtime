@@ -10,6 +10,7 @@ type_name_of_val = []
 
 [lints.rust]
 redundant_imports = "warn"
+trivial_casts = "warn"
 unsafe_code = "forbid"
 unused_qualifications = "warn"
 [lints.clippy]
