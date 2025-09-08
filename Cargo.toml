@@ -16,6 +16,8 @@ unused_qualifications = "warn"
 [lints.clippy]
 min_ident_chars = "warn"
 
+unreadable_literal = "warn"
+
 [dependencies]
 encoding-next = "0.3"
 cp437 = "0.1"

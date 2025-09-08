@@ -735,7 +735,7 @@ mod tests {
     #[test]
     fn read_bits_multiple() {
         // 0xA0
-        let bytes = vec![0b10100000];
+        let bytes = vec![0b1010_0000];
         let reader = BytesReader::from(bytes);
 
         assert_eq!(reader.read_bits_int_be(1).unwrap(), 1);
@@ -745,7 +745,7 @@ mod tests {
 
     #[test]
     fn read_bits_large() {
-        let bytes = vec![0b10100000];
+        let bytes = vec![0b1010_0000];
         let reader = BytesReader::from(bytes);
 
         assert_eq!(reader.read_bits_int_be(3).unwrap(), 5);
