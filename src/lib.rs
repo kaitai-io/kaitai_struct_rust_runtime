@@ -582,7 +582,7 @@ impl KStream for BytesReader {
         // let state = self.state.borrow_mut();
         // state.buf.resize(len, 0);
         let mut buf = vec![0; len];
-        self.buf.borrow_mut().read_exact(&mut buf[..])?;
+        self.buf.borrow_mut().read_exact(&mut buf)?;
         self.get_state_mut().pos += len;
         Ok(buf)
     }
@@ -700,7 +700,7 @@ mod tests {
         let b = vec![1, 2, 3, 4, 5, 5, 5, 5];
         let c = bytes_strip_right(&b, 5);
 
-        assert_eq!([1, 2, 3, 4], c[..]);
+        assert_eq!(c, [1, 2, 3, 4]);
     }
 
     #[test]
@@ -708,8 +708,8 @@ mod tests {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
         let reader = BytesReader::from(b);
 
-        assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
-        assert_eq!(reader.read_bytes(3).unwrap()[..], [5, 6, 7]);
+        assert_eq!(reader.read_bytes(4).unwrap(), [1, 2, 3, 4]);
+        assert_eq!(reader.read_bytes(3).unwrap(), [5, 6, 7]);
         assert_eq!(
             reader.read_bytes(4).unwrap_err(),
             KError::Eof {
@@ -717,7 +717,7 @@ mod tests {
                 available: 1
             }
         );
-        assert_eq!(reader.read_bytes(1).unwrap()[..], [8]);
+        assert_eq!(reader.read_bytes(1).unwrap(), [8]);
     }
 
     #[test]
@@ -772,23 +772,14 @@ mod tests {
         let reader = BytesReader::from(b);
 
         assert_eq!(
-            reader.read_bytes_term(3, false, false, false).unwrap()[..],
+            reader.read_bytes_term(3, false, false, false).unwrap(),
             [1, 2]
         );
+        assert_eq!(reader.read_bytes_term(3, true, false, true).unwrap(), [3]);
+        assert_eq!(reader.read_bytes_term(3, false, true, true).unwrap(), []);
+        assert_eq!(reader.read_bytes_term(5, true, true, true).unwrap(), [4, 5]);
         assert_eq!(
-            reader.read_bytes_term(3, true, false, true).unwrap()[..],
-            [3]
-        );
-        assert_eq!(
-            reader.read_bytes_term(3, false, true, true).unwrap()[..],
-            []
-        );
-        assert_eq!(
-            reader.read_bytes_term(5, true, true, true).unwrap()[..],
-            [4, 5]
-        );
-        assert_eq!(
-            reader.read_bytes_term(8, false, false, true).unwrap()[..],
+            reader.read_bytes_term(8, false, false, true).unwrap(),
             [6, 7]
         );
         assert_eq!(
@@ -798,11 +789,11 @@ mod tests {
         // restore position
         reader.seek(7).unwrap();
         assert_eq!(
-            reader.read_bytes_term(9, true, true, false).unwrap()[..],
+            reader.read_bytes_term(9, true, true, false).unwrap(),
             [8, 9]
         );
         assert_eq!(
-            reader.read_bytes_term(10, true, false, false).unwrap()[..],
+            reader.read_bytes_term(10, true, false, false).unwrap(),
             [10]
         );
     }
@@ -812,16 +803,16 @@ mod tests {
         let b = vec![0x66];
         let reader = BytesReader::from(b);
         let res = process_xor_one(&reader.read_bytes(1).unwrap(), 3);
-        assert_eq!(0x65, res[0]);
+        assert_eq!(res[0], 0x65);
     }
 
     #[test]
     fn process_xor_many_test() {
         let b = vec![0x66, 0x6F];
         let reader = BytesReader::from(b);
-        let key: Vec<u8> = vec![3, 3];
+        let key = vec![3, 3];
         let res = process_xor_many(&reader.read_bytes(2).unwrap(), &key);
-        assert_eq!(vec![0x65, 0x6C], res);
+        assert_eq!(res, [0x65, 0x6C]);
     }
 
     #[test]
@@ -829,8 +820,7 @@ mod tests {
         let b = vec![0x09, 0xAC];
         let reader = BytesReader::from(b);
         let res = process_rotate_left(&reader.read_bytes(2).unwrap(), 3);
-        let expected: Vec<u8> = vec![0x48, 0x65];
-        assert_eq!(expected, res);
+        assert_eq!(res, [0x48, 0x65]);
     }
 
     #[test]
@@ -838,12 +828,12 @@ mod tests {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
         let reader = BytesReader::from(b);
 
-        assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
+        assert_eq!(reader.read_bytes(4).unwrap(), [1, 2, 3, 4]);
         let pos = reader.pos();
         reader.seek(1).unwrap();
-        assert_eq!(reader.read_bytes(4).unwrap()[..], [2, 3, 4, 5]);
+        assert_eq!(reader.read_bytes(4).unwrap(), [2, 3, 4, 5]);
         reader.seek(pos).unwrap();
-        assert_eq!(reader.read_bytes(4).unwrap()[..], [5, 6, 7, 8]);
+        assert_eq!(reader.read_bytes(4).unwrap(), [5, 6, 7, 8]);
         reader.seek(9).unwrap();
     }
 
@@ -861,8 +851,8 @@ mod tests {
     fn basic_read_bytes_file() {
         let reader = dump_and_open(&[1, 2, 3, 4, 5, 6, 7, 8]);
 
-        assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
-        assert_eq!(reader.read_bytes(3).unwrap()[..], [5, 6, 7]);
+        assert_eq!(reader.read_bytes(4).unwrap(), [1, 2, 3, 4]);
+        assert_eq!(reader.read_bytes(3).unwrap(), [5, 6, 7]);
         assert_eq!(
             reader.read_bytes(4).unwrap_err(),
             KError::Eof {
@@ -870,19 +860,19 @@ mod tests {
                 available: 1
             }
         );
-        assert_eq!(reader.read_bytes(1).unwrap()[..], [8]);
+        assert_eq!(reader.read_bytes(1).unwrap(), [8]);
     }
 
     #[test]
     fn basic_seek_file() {
         let reader = dump_and_open(&[1, 2, 3, 4, 5, 6, 7, 8]);
 
-        assert_eq!(reader.read_bytes(4).unwrap()[..], [1, 2, 3, 4]);
+        assert_eq!(reader.read_bytes(4).unwrap(), [1, 2, 3, 4]);
         let pos = reader.pos();
         reader.seek(1).unwrap();
-        assert_eq!(reader.read_bytes(4).unwrap()[..], [2, 3, 4, 5]);
+        assert_eq!(reader.read_bytes(4).unwrap(), [2, 3, 4, 5]);
         reader.seek(pos).unwrap();
-        assert_eq!(reader.read_bytes(4).unwrap()[..], [5, 6, 7, 8]);
+        assert_eq!(reader.read_bytes(4).unwrap(), [5, 6, 7, 8]);
         reader.seek(9).unwrap();
     }
 }
