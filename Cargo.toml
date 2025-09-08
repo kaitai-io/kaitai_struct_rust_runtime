@@ -20,6 +20,7 @@ bool_to_int_with_if = "warn"
 manual_assert = "warn"
 needless_pass_by_value = "warn"
 semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"
 unreadable_literal = "warn"
 
 [dependencies]

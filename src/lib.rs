@@ -230,23 +230,22 @@ pub trait KStruct: Default {
         } else {
             let fallback_any: &dyn Any = &fallback.get();
             //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
-            match fallback_any.downcast_ref::<Rc<U>>() {
-                Some(as_result) => SharedType::<U>::new(as_result.clone()),
-                None => {
-                    #[allow(clippy::incompatible_msrv)] // behind feature flag
-                    #[allow(clippy::manual_assert)]
-                    if panic {
-                        #[cfg(feature = "type_name_of_val")]
-                        panic!(
-                            "`{}` is not a '{}' type",
-                            std::any::type_name_of_val(&fallback),
-                            type_name::<Rc<U>>()
-                        );
-                        #[cfg(not(feature = "type_name_of_val"))]
-                        panic!("`{:p}` is not a '{}' type", &fallback, type_name::<Rc<U>>());
-                    }
-                    SharedType::<U>::empty()
+            if let Some(as_result) = fallback_any.downcast_ref::<Rc<U>>() {
+                SharedType::<U>::new(as_result.clone())
+            } else {
+                #[allow(clippy::incompatible_msrv)] // behind feature flag
+                #[allow(clippy::manual_assert)]
+                if panic {
+                    #[cfg(feature = "type_name_of_val")]
+                    panic!(
+                        "`{}` is not a '{}' type",
+                        std::any::type_name_of_val(&fallback),
+                        type_name::<Rc<U>>()
+                    );
+                    #[cfg(not(feature = "type_name_of_val"))]
+                    panic!("`{:p}` is not a '{}' type", &fallback, type_name::<Rc<U>>());
                 }
+                SharedType::<U>::empty()
             }
         }
     }
