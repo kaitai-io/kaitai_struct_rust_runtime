@@ -78,6 +78,7 @@ impl<T> fmt::Debug for SharedType<T> {
 }
 
 impl<T> SharedType<T> {
+    #[allow(clippy::needless_pass_by_value)] // TODO: change on breaking release
     pub fn new(rc: Rc<T>) -> Self {
         Self(RefCell::new(Rc::downgrade(&rc)))
     }
@@ -230,7 +231,7 @@ pub trait KStruct: Default {
             let fallback_any: &dyn Any = &fallback.get();
             //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
             match fallback_any.downcast_ref::<Rc<U>>() {
-                Some(as_result) => SharedType::<U>::new(Rc::clone(as_result)),
+                Some(as_result) => SharedType::<U>::new(as_result.clone()),
                 None => {
                     #[allow(clippy::incompatible_msrv)] // behind feature flag
                     if panic {
