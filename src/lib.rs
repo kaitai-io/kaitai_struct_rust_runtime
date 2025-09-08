@@ -382,7 +382,7 @@ pub trait KStream {
             let bytes_needed = ((bits_needed - 1) / 8) + 1;
             let buf = self.read_bytes(bytes_needed.try_into().unwrap())?;
             for byte in buf {
-                res = res << 8 | u64::from(byte);
+                res = (res << 8) | u64::from(byte);
             }
             let mut inner = self.get_state_mut();
             let new_bits = res;
@@ -424,7 +424,7 @@ pub trait KStream {
             } else {
                 0
             };
-            res = res << inner.bits_left | inner.bits;
+            res = (res << inner.bits_left) | inner.bits;
             inner.bits = new_bits;
         } else {
             let mut inner = self.get_state_mut();

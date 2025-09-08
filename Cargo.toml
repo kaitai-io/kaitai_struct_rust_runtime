@@ -16,6 +16,7 @@ unused_qualifications = "warn"
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 min_ident_chars = "warn"
+precedence_bits = "warn"
 
 use_self = "warn"
 
