@@ -492,7 +492,7 @@ impl fmt::Display for dyn ReadSeek {
 }
 
 impl fmt::Debug for dyn ReadSeek {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ReadSeek")
     }
 }

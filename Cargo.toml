@@ -8,6 +8,10 @@ rust-version = "1.63"
 [features]
 type_name_of_val = []
 
+[lints.rust]
+unsafe_code = "forbid"
+unused_qualifications = "warn"
+
 [dependencies]
 encoding-next = "0.3"
 cp437 = "0.1"
