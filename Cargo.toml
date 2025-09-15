@@ -2,13 +2,36 @@
 name = "kaitai"
 version = "0.2.0"
 authors = ["Bradlee Speice <bradlee@speice.io>", "Aon"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.63"
+
+[features]
+type_name_of_val = []
+
+[lints.rust]
+redundant_imports = "warn"
+trivial_casts = "warn"
+unsafe_code = "forbid"
+unused_qualifications = "warn"
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+str_to_string = "warn"
+min_ident_chars = "warn"
+precedence_bits = "warn"
+
+derive_partial_eq_without_eq = "warn"
+use_self = "warn"
+
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+used_underscore_binding = "allow" # _io and so on are the same as on other reader implementations
 
 [dependencies]
 encoding-next = "0.3"
-cp437 = "*"
-unicode-segmentation = "1.9.0"
-flate2 = "1.0"
+cp437 = "0.1"
+unicode-segmentation = "1"
+flate2 = "1"
 
 [dev-dependencies]
-tempfile = "3.4.0"
+tempfile = "3"
