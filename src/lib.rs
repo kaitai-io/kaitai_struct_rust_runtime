@@ -195,8 +195,8 @@ pub trait KStruct: Default {
         _parent: Option<SharedType<Output::Parent>>,
     ) -> KResult<OptRc<Output>> {
         let output = OptRc::from(Output::default());
-        let root = Self::downcast(_root, output.clone(), true);
-        let parent = Self::downcast(_parent, output.clone(), false);
+        let root = downcast(_root, &output, true);
+        let parent = downcast(_parent, &output, false);
         Output::read(&output, _io, root, parent)?;
         Ok(output)
     }
@@ -211,43 +211,39 @@ pub trait KStruct: Default {
         let mut output = OptRc::from(Output::default());
         init(Rc::get_mut(output.get_mut()).unwrap())?;
 
-        let root = Self::downcast(_root, output.clone(), true);
-        let parent = Self::downcast(_parent, output.clone(), false);
+        let root = downcast(_root, &output, true);
+        let parent = downcast(_parent, &output, false);
         Output::read(&output, _io, root, parent)?;
         Ok(output)
     }
+}
 
-    fn downcast<T, U>(
-        opt_rc: Option<SharedType<U>>,
-        fallback: OptRc<T>,
-        panic: bool,
-    ) -> SharedType<U>
-    where
-        T: KStruct + Default + Any,
-        U: 'static,
-    {
-        if let Some(rc) = opt_rc {
-            rc
+fn downcast<T, U>(opt_rc: Option<SharedType<U>>, fallback: &OptRc<T>, panic: bool) -> SharedType<U>
+where
+    T: KStruct + Default + Any,
+    U: 'static,
+{
+    if let Some(rc) = opt_rc {
+        rc
+    } else {
+        let fallback_any: &dyn Any = &fallback.get();
+        //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
+        if let Some(as_result) = fallback_any.downcast_ref::<Rc<U>>() {
+            SharedType::<U>::new(as_result.clone())
         } else {
-            let fallback_any: &dyn Any = &fallback.get();
-            //println!("`{}` is a '{}' type", type_name_of_val(&t), type_name::<Rc<U>>());
-            if let Some(as_result) = fallback_any.downcast_ref::<Rc<U>>() {
-                SharedType::<U>::new(as_result.clone())
-            } else {
-                #[allow(clippy::incompatible_msrv)] // behind feature flag
-                #[allow(clippy::manual_assert)]
-                if panic {
-                    #[cfg(feature = "type_name_of_val")]
-                    panic!(
-                        "`{}` is not a '{}' type",
-                        std::any::type_name_of_val(&fallback),
-                        type_name::<Rc<U>>()
-                    );
-                    #[cfg(not(feature = "type_name_of_val"))]
-                    panic!("`{:p}` is not a '{}' type", &fallback, type_name::<Rc<U>>());
-                }
-                SharedType::<U>::empty()
+            #[allow(clippy::incompatible_msrv)] // behind feature flag
+            #[allow(clippy::manual_assert)]
+            if panic {
+                #[cfg(feature = "type_name_of_val")]
+                panic!(
+                    "`{}` is not a '{}' type",
+                    std::any::type_name_of_val(&fallback),
+                    type_name::<Rc<U>>()
+                );
+                #[cfg(not(feature = "type_name_of_val"))]
+                panic!("`{:p}` is not a '{}' type", &fallback, type_name::<Rc<U>>());
             }
+            SharedType::<U>::empty()
         }
     }
 }
