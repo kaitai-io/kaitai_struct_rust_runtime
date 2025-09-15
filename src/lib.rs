@@ -6,7 +6,7 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     convert::TryInto,
     fmt,
-    io::{Read, Seek, SeekFrom},
+    io::{BufReader, Read, Seek, SeekFrom},
     ops::Deref,
     path::Path,
     rc::{Rc, Weak},
@@ -522,7 +522,7 @@ impl BytesReader {
     pub fn open<T: AsRef<Path>>(filename: T) -> KResult<Self> {
         let f = std::fs::File::open(filename)?;
         let file_size = f.metadata().unwrap().len();
-        let r: Box<dyn ReadSeek> = Box::new(f);
+        let r: Box<dyn ReadSeek> = Box::new(BufReader::new(f));
         Ok(BytesReader {
             state: RefCell::new(ReaderState::default()),
             file_size,
