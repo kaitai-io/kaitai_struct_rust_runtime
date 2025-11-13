@@ -287,6 +287,7 @@ pub trait KStream {
     }
 
     fn seek(&self, position: usize) -> KResult<()> {
+        self.align_to_byte();
         self.get_state_mut().pos = position;
         Ok(())
     }
@@ -355,12 +356,10 @@ pub trait KStream {
     fn get_state(&self) -> Ref<ReaderState>;
     fn get_state_mut(&self) -> RefMut<ReaderState>;
 
-    fn align_to_byte(&self) -> KResult<()> {
+    fn align_to_byte(&self) -> () {
         let mut inner = self.get_state_mut();
         inner.bits = 0;
         inner.bits_left = 0;
-
-        Ok(())
     }
 
     fn read_bits_int_be(&self, n: usize) -> KResult<u64> {
@@ -376,7 +375,7 @@ pub trait KStream {
 
         if bits_needed > 0 {
             let bytes_needed = ((bits_needed - 1) / 8) + 1;
-            let buf = self.read_bytes(bytes_needed.try_into().unwrap())?;
+            let buf = self.read_bytes_not_aligned(bytes_needed.try_into().unwrap())?;
             for b in buf {
                 res = res << 8 | u64::from(b);
             }
@@ -410,7 +409,7 @@ pub trait KStream {
 
         if bits_needed > 0 {
             let bytes_needed = ((bits_needed - 1) / 8) + 1;
-            let buf = self.read_bytes(bytes_needed.try_into().unwrap())?;
+            let buf = self.read_bytes_not_aligned(bytes_needed.try_into().unwrap())?;
             for (i, &b) in buf.iter().enumerate() {
                 res |= u64::from(b) << (i * 8);
             }
@@ -438,7 +437,13 @@ pub trait KStream {
         Ok(res)
     }
 
-    fn read_bytes(&self, len: usize) -> KResult<Vec<u8>>;
+    fn read_bytes(&self, len: usize) -> KResult<Vec<u8>> {
+        self.align_to_byte();
+        self.read_bytes_not_aligned(len)
+    }
+
+    fn read_bytes_not_aligned(&self, len: usize) -> KResult<Vec<u8>>;
+
     fn read_bytes_full(&self) -> KResult<Vec<u8>>;
 
     fn read_bytes_term(
@@ -448,6 +453,7 @@ pub trait KStream {
         consume: bool,
         eos_error: bool,
     ) -> KResult<Vec<u8>> {
+        self.align_to_byte();
         let mut buf = vec![];
         loop {
             let c = match self.read_u1() {
@@ -572,7 +578,7 @@ impl KStream for BytesReader {
         self.file_size as usize
     }
 
-    fn read_bytes(&self, len: usize) -> KResult<Vec<u8>> {
+    fn read_bytes_not_aligned(&self, len: usize) -> KResult<Vec<u8>> {
         // handle read beyond end of file
         let num_bytes_available = self.size().saturating_sub(self.pos());
         if len > num_bytes_available {
@@ -594,6 +600,7 @@ impl KStream for BytesReader {
     }
 
     fn read_bytes_full(&self) -> KResult<Vec<u8>> {
+        self.align_to_byte();
         self.sync_pos()?;
         //let state = self.state.borrow_mut();
         let mut buf = Vec::new();
